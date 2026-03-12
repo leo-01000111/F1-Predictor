@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data — raw and processed (large files, not for version control)
+data/raw/
+data/processed/
+data/cache/
+data/predictions/
+data/results/
+data/*.parquet
+data/*.csv
+data/*.json
+
+# Logs
+*.log
+data/collection_log*.txt
+data/pipeline_log*.txt
+data/weather_log*.txt
+data/task_history.jsonl
+
+# Models (binary artifacts)
+models/*.pkl
+models/*.pt
+models/*.onnx
+models/*.parquet
+models/*.json
+
+# FastF1 cache
+cache/
+fastf1_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Project-local docs and AI context files
+CLAUDE.md
+CODEX_REC_CHANG.md
+DESKTOP_UI_POSITIVES.md
+RecommendedChanges.md
+TODO_FP_MIGRATION.md
+.claude/
+
+# Misc
+nul
+write_files.py

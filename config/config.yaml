@@ -1,0 +1,178 @@
+project:
+  name: F1 Race Prediction Pipeline
+  version: "1.0.0"
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  cache_dir: data/cache
+  predictions_dir: data/predictions
+  seasons:
+    start: 2014
+    end: 2024
+
+fastf1:
+  cache_dir: data/cache
+  # Sessions to pull per race weekend
+  sessions:
+    - R   # Race
+    - Q   # Qualifying
+
+openf1:
+  base_url: https://api.openf1.org/v1
+
+weather:
+  # Open-Meteo — no API key required
+  archive_url: https://archive-api.open-meteo.com/v1/archive
+  forecast_url: https://api.open-meteo.com/v1/forecast
+  variables:
+    - temperature_2m
+    - precipitation
+    - windspeed_10m
+    - relativehumidity_2m
+    - cloudcover
+  # Precipitation threshold to classify as "wet race"
+  wet_race_precip_mm: 2.0
+
+reddit:
+  subreddits:
+    - formula1
+    - f1technical
+  posts_per_race_week: 100
+  top_comments_per_post: 10
+  # Window (days before race) for sentiment collection
+  sentiment_window_days: 7
+  # Minimum post score to include
+  min_post_score: 10
+
+sentiment:
+  model_name: cardiffnlp/twitter-roberta-base-sentiment-latest
+  batch_size: 32
+  max_length: 512
+  # Labels expected from the model
+  labels:
+    negative: LABEL_0
+    neutral: LABEL_1
+    positive: LABEL_2
+
+features:
+  # Rolling window sizes for driver form
+  form_windows: [5, 10]
+  # Seasons of circuit history to use for circuit-specific features
+  circuit_history_seasons: 5
+  # Minimum races at circuit to compute circuit_avg_finish (else use global avg)
+  min_circuit_appearances: 2
+
+model:
+  xgboost:
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: 6
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 3
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    n_jobs: -1
+    random_state: 42
+
+  neural_network:
+    hidden_dims: [256, 128, 64]
+    dropout: 0.3
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    batch_size: 128
+    max_epochs: 200
+    early_stopping_patience: 15
+    random_state: 42
+
+  ensemble:
+    # Meta-learner for stacking
+    meta_learner: logistic_regression
+    cv_folds: 5  # cross-val folds for stacking
+
+  calibration:
+    method: isotonic  # or 'sigmoid' (Platt scaling)
+
+training:
+  # Leave-one-season-out cross-validation
+  validation_strategy: leave_season_out
+  # Seasons to hold out for final backtest (not used in any training)
+  holdout_seasons: [2023, 2024]
+  # Minimum Brier score target for P1
+  target_brier_score: 0.15
+
+# F1 circuit coordinates for weather fetching
+circuits:
+  bahrain:
+    lat: 26.0325
+    lon: 50.5106
+  saudi_arabia:
+    lat: 21.4858
+    lon: 39.1925
+  australia:
+    lat: -37.8497
+    lon: 144.9680
+  japan:
+    lat: 34.8431
+    lon: 136.5419
+  china:
+    lat: 31.3389
+    lon: 121.2197
+  miami:
+    lat: 25.9581
+    lon: -80.2389
+  emilia_romagna:
+    lat: 44.3439
+    lon: 11.7139
+  monaco:
+    lat: 43.7347
+    lon: 7.4206
+  canada:
+    lat: 45.5000
+    lon: -73.5228
+  spain:
+    lat: 41.5700
+    lon: 2.2611
+  austria:
+    lat: 47.2197
+    lon: 14.7647
+  great_britain:
+    lat: 52.0733
+    lon: -1.0169
+  hungary:
+    lat: 47.5789
+    lon: 19.2486
+  belgium:
+    lat: 50.4372
+    lon: 5.9714
+  netherlands:
+    lat: 52.3888
+    lon: 4.5409
+  italy:
+    lat: 45.6156
+    lon: 9.2811
+  azerbaijan:
+    lat: 40.3725
+    lon: 49.8533
+  singapore:
+    lat: 1.2914
+    lon: 103.8639
+  united_states:
+    lat: 30.1328
+    lon: -97.6411
+  mexico:
+    lat: 19.4042
+    lon: -99.0907
+  brazil:
+    lat: -23.7036
+    lon: -46.6997
+  las_vegas:
+    lat: 36.1147
+    lon: -115.1728
+  qatar:
+    lat: 25.4897
+    lon: 51.4531
+  abu_dhabi:
+    lat: 24.4672
+    lon: 54.6031
