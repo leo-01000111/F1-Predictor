@@ -4,10 +4,13 @@ Model artifact registry helpers.
 This module centralizes how training jobs persist:
   - holdout metrics (generic + model-family-specific files)
   - active production model metadata
+  - model snapshots for rollback
 """
 from __future__ import annotations
 
 import json
+import pickle
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -15,6 +18,7 @@ from typing import Any, Optional
 ROOT = Path(__file__).parent.parent.parent
 MODELS_DIR = ROOT / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
+SNAPSHOTS_DIR = MODELS_DIR / "snapshots"
 
 ACTIVE_MODEL_PATH = MODELS_DIR / "active_model.json"
 
@@ -88,3 +92,49 @@ def load_active_model_metadata() -> Optional[dict[str, Any]]:
         return None
     with open(ACTIVE_MODEL_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+# --------------------------------------------------------------------------- #
+# Snapshot / rollback helpers
+# --------------------------------------------------------------------------- #
+
+def snapshot_model(name: str, keep_last: int = 5) -> Optional[Path]:
+    """
+    Copy models/{name}.pkl to models/snapshots/{name}_{timestamp}.pkl.
+    Keeps the most recent `keep_last` snapshots and deletes older ones.
+    Returns the snapshot path, or None if source does not exist.
+    """
+    src = MODELS_DIR / f"{name}.pkl"
+    if not src.exists():
+        return None
+
+    SNAPSHOTS_DIR.mkdir(exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dst = SNAPSHOTS_DIR / f"{name}_{timestamp}.pkl"
+    shutil.copy2(src, dst)
+
+    # Prune: keep only the most recent `keep_last` snapshots for this name
+    existing = sorted(SNAPSHOTS_DIR.glob(f"{name}_*.pkl"))
+    for old in existing[:-keep_last]:
+        old.unlink(missing_ok=True)
+
+    return dst
+
+
+def list_snapshots(name: str) -> list[Path]:
+    """Return available snapshots for a model, newest first."""
+    if not SNAPSHOTS_DIR.exists():
+        return []
+    return sorted(SNAPSHOTS_DIR.glob(f"{name}_*.pkl"), reverse=True)
+
+
+def load_snapshot(name: str, index: int = 0) -> Any:
+    """
+    Load a snapshot by recency index (0 = newest, 1 = second newest, ...).
+    Raises FileNotFoundError if no snapshot exists at that index.
+    """
+    snaps = list_snapshots(name)
+    if not snaps or index >= len(snaps):
+        raise FileNotFoundError(f"No snapshot at index {index} for model '{name}'")
+    with open(snaps[index], "rb") as f:
+        return pickle.load(f)

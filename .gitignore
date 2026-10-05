@@ -83,3 +83,7 @@ TODO_FP_MIGRATION.md
 # Misc
 nul
 write_files.py
+
+# Local artifacts
+models/snapshots/
+data/bookmaker_odds/

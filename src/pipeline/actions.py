@@ -200,18 +200,22 @@ class PipelineActionRunner:
         winner_actual = winner_actual_arr[0] if len(winner_actual_arr) else None
         podium_actual = set(actual_df[actual_df["finish_position"].isin([1, 2, 3])]["driver"].tolist())
         pred_winner = predictions[0]["driver"] if predictions else None
-        pred_podium = {
-            p["driver"]
-            for p in sorted(
-                predictions,
-                key=lambda x: float(
-                    (x.get("p_win", 0.0) or 0.0)
-                    + (x.get("p_p2", 0.0) or 0.0)
-                    + (x.get("p_p3", 0.0) or 0.0)
-                ),
-                reverse=True,
-            )[:3]
-        }
+
+        # Pick predicted podium per-position (same logic as dashboard cards):
+        #   P1 pick = driver with highest p_win
+        #   P2 pick = driver with highest p_p2 (excluding P1 pick)
+        #   P3 pick = driver with highest p_p3 (excluding P1 + P2 picks)
+        # This matches what a user sees on screen and avoids composite-score vs
+        # per-card disagreements when probabilities are close or tied.
+        _remaining = list(predictions)
+        pred_podium_list: list[str] = []
+        for pos_key in ("p_win", "p_p2", "p_p3"):
+            if not _remaining:
+                break
+            best = max(_remaining, key=lambda x, k=pos_key: float(x.get(k, 0.0) or 0.0))
+            pred_podium_list.append(best["driver"])
+            _remaining = [p for p in _remaining if p["driver"] != best["driver"]]
+        pred_podium = set(pred_podium_list)
 
         winner_hit = pred_winner == winner_actual
         podium_overlap = len(pred_podium & podium_actual)
@@ -287,19 +291,144 @@ class PipelineActionRunner:
             if exc.code not in (0, None):
                 raise RuntimeError(f"quick_train exited with code {exc.code}") from None
         context.progress(100, "Quick retrain completed.")
-        context.log("Updated models/xgb_podium.pkl and models/calibrator.pkl")
+        context.log("Updated models/xgb_race.pkl")
         return {"mode": "quick_retrain", "status": "ok"}
 
     def full_retrain(self, *, context: ActionContext) -> dict[str, Any]:
-        from src.training.train import train as full_train
+        from scripts.quick_train import main as quick_train_main
 
-        context.progress(3, "Starting full retrain (XGBoost)...")
+        context.progress(3, "Starting full retrain...")
         context.log("Training can take several minutes.")
         context.check_cancelled()
-        full_train()
+        try:
+            quick_train_main()
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
         context.progress(100, "Full retrain completed.")
-        context.log("Updated models/xgb_podium.pkl and models/calibrator.pkl")
+        context.log("Updated models/xgb_race.pkl")
         return {"mode": "full_retrain", "status": "ok"}
+
+    def post_race_retrain(self, *, year: int, round_num: int, context: ActionContext) -> dict[str, Any]:
+        """
+        After race round_num completes:
+        1. Fetch all completed year races from FastF1 and merge into raw parquet
+        2. Rebuild feature matrix
+        3. Retrain XGBoost
+        Reports accuracy before/after.
+        """
+        from src.data_collection.f1_live import get_completed_season_race_results
+        from src.data_collection.f1_historical import (
+            load_quali_results, load_practice_results,
+            load_lap_extras, load_pit_stops, load_sprint_results,
+        )
+        from src.data_collection.weather import load_weather_history
+        from src.features.build_features import build_feature_matrix, save_feature_matrix
+        from src.models.model_registry import load_active_model_metadata
+        from scripts.quick_train import main as quick_train_main
+
+        RAW_DIR = self.root / "data" / "raw"
+        race_path = RAW_DIR / "race_results.parquet"
+
+        # Step 1: fetch completed in-season races
+        context.progress(5, f"Fetching completed {year} race results...")
+        inseason_df = get_completed_season_race_results(year)
+        if inseason_df.empty:
+            raise RuntimeError(
+                f"No completed race data found for {year}. Has the race finished and FastF1 published results?"
+            )
+        n_rounds = int(inseason_df["round"].nunique())
+        context.log(f"Fetched {len(inseason_df)} rows from {n_rounds} completed {year} rounds.")
+        context.check_cancelled()
+
+        # Step 2: merge into raw parquet (replace this year's rows entirely with fresh fetch)
+        context.progress(18, "Merging into historical data...")
+        if race_path.exists():
+            existing = pd.read_parquet(race_path)
+            old_year_rows = int((existing["year"] == year).sum())
+            base = existing[existing["year"] != year]
+            merged = pd.concat([base, inseason_df], ignore_index=True).sort_values(["year", "round", "driver"])
+            context.log(
+                f"Replaced {old_year_rows} old {year} rows with {len(inseason_df)} fresh rows. "
+                f"Total: {len(merged)} rows."
+            )
+        else:
+            merged = inseason_df.sort_values(["year", "round", "driver"])
+            context.log(f"No existing race_results.parquet — writing {len(merged)} rows from {year}.")
+        merged.to_parquet(race_path, index=False)
+        context.check_cancelled()
+
+        # Step 3: rebuild feature matrix
+        context.progress(32, "Rebuilding feature matrix...")
+        try:
+            quali_df = load_quali_results()
+        except FileNotFoundError:
+            raise RuntimeError("quali_results.parquet not found. Run f1_historical first.")
+
+        weather_df = None
+        practice_df = None
+        lap_extras_df = None
+        pit_df = None
+        sprint_df = None
+        try:
+            weather_df = load_weather_history()
+        except FileNotFoundError:
+            context.log("No weather data — proceeding without it.")
+        try:
+            practice_df = load_practice_results()
+        except FileNotFoundError:
+            context.log("No practice data — FP features will be zero.")
+        try:
+            lap_extras_df = load_lap_extras()
+        except FileNotFoundError:
+            context.log("No lap_extras.parquet — start delta/compound will be zero.")
+        try:
+            pit_df = load_pit_stops()
+        except FileNotFoundError:
+            context.log("No pit_stops.parquet — team_pit_delta_s will be NaN.")
+        try:
+            sprint_df = load_sprint_results()
+        except FileNotFoundError:
+            context.log("No sprint_results.parquet — sprint_position_rel will be neutral.")
+
+        fm = build_feature_matrix(
+            race_df=merged,
+            quali_df=quali_df,
+            weather_df=weather_df,
+            practice_df=practice_df,
+            lap_extras_df=lap_extras_df,
+            pit_df=pit_df,
+            sprint_df=sprint_df,
+        )
+        save_feature_matrix(fm)
+        context.log(f"Feature matrix rebuilt: {len(fm)} rows, {fm.shape[1]} columns.")
+        context.check_cancelled()
+
+        # Step 4: retrain
+        context.progress(55, "Retraining XGBoost on updated dataset...")
+        old_acc = float((load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0)
+        context.check_cancelled()
+
+        try:
+            quick_train_main()
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
+
+        new_acc = float((load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0)
+        delta = new_acc - old_acc
+        sign = "+" if delta >= 0 else ""
+        context.log(f"Retrain complete. Holdout accuracy: {old_acc:.1%} -> {new_acc:.1%} ({sign}{delta:.1%})")
+        context.progress(100, f"Post-race retrain complete ({sign}{delta:.1%})")
+        return {
+            "mode": "post_race_retrain",
+            "year": year,
+            "rounds_included": n_rounds,
+            "new_rows": len(inseason_df),
+            "old_winner_accuracy": round(old_acc, 4),
+            "new_winner_accuracy": round(new_acc, 4),
+            "accuracy_delta": round(delta, 4),
+        }
 
     def _season_ece_summary(self, year: int) -> dict[str, Any] | None:
         rows: list[dict[str, Any]] = []

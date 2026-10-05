@@ -260,7 +260,7 @@ def get_quali_results(session_key: int) -> pd.DataFrame:
         logger.warning(f"No lap data found for session_key={session_key}")
         return pd.DataFrame()
 
-    # Best lap per driver
+    # Best lap per driver (from lap data)
     laps_df["lap_duration"] = _to_float_series(laps_df.get("lap_duration", pd.Series(dtype=float)))
     best_laps = (
         laps_df.groupby("driver_number")["lap_duration"]
@@ -268,6 +268,19 @@ def get_quali_results(session_key: int) -> pd.DataFrame:
         .reset_index()
         .rename(columns={"lap_duration": "best_lap_time_s"})
     )
+
+    # Include all registered drivers — even those with no timed lap (DNF/DNS in quali)
+    timed_numbers = set(best_laps["driver_number"].tolist())
+    untimed_rows = [
+        {"driver_number": num, "best_lap_time_s": float("nan")}
+        for num, info in drivers.items()
+        if num not in timed_numbers and info.get("name_acronym")
+    ]
+    if untimed_rows:
+        best_laps = pd.concat([best_laps, pd.DataFrame(untimed_rows)], ignore_index=True)
+        logger.info(
+            f"session_key={session_key}: added {len(untimed_rows)} driver(s) with no timed lap"
+        )
 
     # Merge driver info
     best_laps["driver_abbr"] = best_laps["driver_number"].map(
@@ -277,11 +290,11 @@ def get_quali_results(session_key: int) -> pd.DataFrame:
         lambda n: drivers.get(n, {}).get("team_name", "Unknown")
     )
 
-    # Rank by best lap time => qualifying position
-    best_laps = best_laps.sort_values("best_lap_time_s").reset_index(drop=True)
+    # Rank by best lap time — timed drivers first (NaN sorts to end automatically)
+    best_laps = best_laps.sort_values("best_lap_time_s", na_position="last").reset_index(drop=True)
     best_laps["quali_position"] = best_laps.index + 1
 
-    # Gap to pole
+    # Gap to pole (NaN for untimed drivers)
     pole_time = best_laps["best_lap_time_s"].iloc[0]
     best_laps["quali_gap_to_pole_s"] = best_laps["best_lap_time_s"] - pole_time
 
@@ -603,6 +616,99 @@ def get_completed_season_race_results(year: int, max_round: Optional[int] = None
     df = df.sort_values(["year", "round"]).reset_index(drop=True)
     logger.info(f"In-season results: {len(df)} rows across {df['round'].nunique()} completed rounds of {year}")
     return df
+
+
+def get_live_sprint_pace_dataframe(year: int, round_num: int) -> pd.DataFrame:
+    """
+    Fetch sprint race lap-based pace metrics from OpenF1 for the current weekend.
+
+    Returns a DataFrame with columns:
+        year, round, driver, sprint_best_lap_gap_s, sprint_pace_gap_s
+
+    sprint_best_lap_gap_s : driver best lap vs session best lap (gap to fastest)
+    sprint_pace_gap_s     : driver median mid-race pace vs session median (race pace delta)
+
+    Returns empty DataFrame when no sprint session exists (normal weekends) or
+    when the sprint has not happened yet.
+    """
+    session = get_session_by_round(year, round_num, "Sprint")
+    if session is None:
+        logger.debug(f"No sprint session found for {year} R{round_num} (normal weekend)")
+        return pd.DataFrame()
+
+    session_key = session.get("session_key")
+    if session_key is None:
+        return pd.DataFrame()
+
+    try:
+        laps_raw = _get("laps", {"session_key": session_key})
+    except Exception as exc:
+        logger.warning(f"Could not fetch sprint laps for {year} R{round_num}: {exc}")
+        return pd.DataFrame()
+
+    if not laps_raw:
+        logger.debug(f"No sprint lap data yet for {year} R{round_num} (sprint not finished?)")
+        return pd.DataFrame()
+
+    laps_df = pd.DataFrame(laps_raw)
+    if "lap_duration" not in laps_df.columns or "driver_number" not in laps_df.columns:
+        return pd.DataFrame()
+
+    laps_df["lap_s"] = pd.to_numeric(laps_df["lap_duration"], errors="coerce")
+    laps_df = laps_df[laps_df["lap_s"].between(40.0, 200.0)].copy()
+    if laps_df.empty:
+        return pd.DataFrame()
+
+    # Map driver_number → abbreviation
+    try:
+        drivers_raw = _get("drivers", {"session_key": session_key})
+        driver_map: dict[int, str] = {
+            int(d["driver_number"]): str(d.get("name_acronym", ""))
+            for d in drivers_raw
+            if d.get("driver_number") is not None
+        }
+    except Exception:
+        driver_map = {}
+
+    laps_df["driver"] = pd.to_numeric(laps_df["driver_number"], errors="coerce").map(driver_map)
+    laps_df = laps_df[laps_df["driver"].notna() & (laps_df["driver"] != "")]
+    if laps_df.empty:
+        return pd.DataFrame()
+
+    session_best = laps_df["lap_s"].min()
+
+    # Mid-race laps: skip lap 1 (standing start) and last 2 (push laps / safety car)
+    lap_num_col = "lap_number" if "lap_number" in laps_df.columns else None
+    if lap_num_col:
+        max_lap = laps_df[lap_num_col].max()
+        mid = laps_df[(laps_df[lap_num_col] > 1) & (laps_df[lap_num_col] < max_lap - 1)]
+    else:
+        mid = laps_df.copy()
+    session_mid_median = mid["lap_s"].median() if not mid.empty else laps_df["lap_s"].median()
+
+    rows = []
+    for drv, grp in laps_df.groupby("driver"):
+        best_gap = float(np.clip(grp["lap_s"].min() - session_best, 0.0, 10.0))
+        drv_mid = mid[mid["driver"] == drv]["lap_s"] if not mid.empty else pd.Series(dtype=float)
+        pace_gap = float(np.clip(
+            (drv_mid.median() if not drv_mid.empty else grp["lap_s"].median()) - session_mid_median,
+            -5.0, 10.0,
+        ))
+        rows.append({
+            "year": year,
+            "round": round_num,
+            "driver": drv,
+            "sprint_best_lap_gap_s": best_gap,
+            "sprint_pace_gap_s": pace_gap,
+        })
+
+    result = pd.DataFrame(rows)
+    logger.info(
+        f"Sprint pace data fetched for {year} R{round_num}: {len(result)} drivers | "
+        f"best gap range [{result['sprint_best_lap_gap_s'].min():.2f}, "
+        f"{result['sprint_best_lap_gap_s'].max():.2f}]s"
+    )
+    return result
 
 
 def get_start_compounds(year: int, round_num: int) -> dict[str, str]:

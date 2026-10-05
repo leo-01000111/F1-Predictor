@@ -21,6 +21,9 @@ Usage:
     # After qualifying Saturday:
     python scripts/race_weekend_inference.py --year 2026 --round N
 
+    # 30 min before race (grid walk) -- pass tyre choices from broadcast:
+    python scripts/race_weekend_inference.py --year 2026 --round N --compounds VER:SOFT NOR:MEDIUM RUS:HARD
+
     # Dry run with a past race (for testing):
     python scripts/race_weekend_inference.py --year 2024 --round 10 --dry-run
 
@@ -42,15 +45,29 @@ sys.path.insert(0, str(ROOT))
 from loguru import logger
 
 
+def _parse_compounds(raw: list[str]) -> dict[str, str]:
+    """Parse ['VER:SOFT', 'NOR:MEDIUM', ...] into {'VER': 'SOFT', ...}."""
+    result = {}
+    for item in raw:
+        if ":" not in item:
+            logger.warning(f"Ignoring malformed --compounds entry '{item}' (expected DRIVER:COMPOUND)")
+            continue
+        driver, compound = item.split(":", 1)
+        result[driver.strip().upper()] = compound.strip().upper()
+    return result
+
+
 def main(
     year: int,
     round_num: int,
     dry_run: bool = False,
+    manual_compounds: dict[str, str] | None = None,
 ) -> None:
 
     from src.data_collection.f1_live import (
         get_live_practice_dataframe,
         get_live_quali_dataframe,
+        get_live_sprint_pace_dataframe,
         get_completed_season_race_results,
         get_start_compounds,
     )
@@ -121,15 +138,39 @@ def main(
         logger.info(f"Fetched practice data for {practice_df['driver'].nunique()} drivers")
 
     # ------------------------------------------------------------------ #
-    # 3b. Fetch start tire compounds (available after race, not pre-race)
+    # 3c. Sprint race pace (sprint weekends only)
+    #     Substitutes fp2_best_gap_s / fp_long_run_delta where FP2/FP3 absent.
     # ------------------------------------------------------------------ #
-    logger.info(f"Attempting to fetch start compounds for {year} R{round_num}...")
-    compounds = get_start_compounds(year, round_num)
-    if compounds:
-        quali_df["start_compound"] = quali_df["driver_abbr"].map(compounds)
-        logger.info(f"Start compounds applied: {compounds}")
+    logger.info(f"Checking for sprint race pace data for {year} R{round_num}...")
+    live_sprint_pace_df = get_live_sprint_pace_dataframe(year, round_num)
+    if not live_sprint_pace_df.empty:
+        logger.info(
+            f"Sprint pace available: {len(live_sprint_pace_df)} drivers — "
+            "will substitute fp2_best_gap_s / fp_long_run_delta for this sprint weekend."
+        )
     else:
-        logger.info("Start compound data not yet available (pre-race is normal). Defaulting to Medium.")
+        logger.info("No sprint pace data (normal weekend or sprint not yet run).")
+
+    # ------------------------------------------------------------------ #
+    # 3b. Start tire compounds
+    #     Priority: --compounds flag > OpenF1 API > default Medium
+    # ------------------------------------------------------------------ #
+    if manual_compounds:
+        quali_df["start_compound"] = quali_df["driver_abbr"].map(manual_compounds)
+        missing = quali_df[quali_df["start_compound"].isna()]["driver_abbr"].tolist()
+        if missing:
+            logger.warning(f"No compound specified for: {missing} -- defaulting to Medium")
+            quali_df["start_compound"] = quali_df["start_compound"].fillna("MEDIUM")
+        logger.info(f"Manual compounds applied: {manual_compounds}")
+    else:
+        logger.info(f"Attempting to fetch start compounds for {year} R{round_num}...")
+        compounds = get_start_compounds(year, round_num)
+        if compounds:
+            quali_df["start_compound"] = quali_df["driver_abbr"].map(compounds)
+            logger.info(f"Start compounds applied: {compounds}")
+        else:
+            logger.info("Start compound data not yet available (pre-race is normal). Defaulting to Medium.")
+            logger.info("Tip: pass --compounds VER:SOFT NOR:MEDIUM ... using grid-walk broadcast data.")
 
     # ------------------------------------------------------------------ #
     # 4. Get race-day weather forecast
@@ -197,6 +238,17 @@ def main(
         logger.info("No sprint_results.parquet; sprint_position_rel will be 0.5. "
                     "Run: python scripts/backfill_pit_sprint.py --sprint --merge")
 
+    # Merge live sprint pace into sprint_df so feature pipeline sees it.
+    # live_sprint_pace_df has the current-weekend sprint laps;
+    # sprint_df from parquet covers historical sprint rounds.
+    if not live_sprint_pace_df.empty:
+        if sprint_df is not None and not sprint_df.empty:
+            sprint_df = pd.concat([sprint_df, live_sprint_pace_df], ignore_index=True).drop_duplicates(
+                subset=["year", "round", "driver"], keep="last"
+            )
+        else:
+            sprint_df = live_sprint_pace_df
+
     logger.info("Running model inference...")
     result = run_inference(
         year=year,
@@ -230,14 +282,23 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="F1 Race Weekend Inference")
-    parser.add_argument("--year", type=int, required=True, help="Race year (e.g. 2025)")
+    parser.add_argument("--year", type=int, required=True, help="Race year (e.g. 2026)")
     parser.add_argument("--round", type=int, required=True, dest="round_num", help="Round number")
     parser.add_argument("--dry-run", action="store_true", help="Print data without running model")
+    parser.add_argument(
+        "--compounds", nargs="+", metavar="DRIVER:COMPOUND",
+        help=(
+            "Manual tyre compounds from grid-walk broadcast (overrides OpenF1). "
+            "Format: VER:SOFT NOR:MEDIUM RUS:HARD ... "
+            "Valid compounds: SOFT, MEDIUM, HARD, INTERMEDIATE, WET"
+        ),
+    )
     args = parser.parse_args()
 
     main(
         year=args.year,
         round_num=args.round_num,
         dry_run=args.dry_run,
+        manual_compounds=_parse_compounds(args.compounds) if args.compounds else None,
     )
 

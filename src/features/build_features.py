@@ -30,6 +30,7 @@ from src.features.driver_features import (
     add_elo_ratings,
     add_wet_performance,
     add_championship_pressure,
+    add_driver_experience,
 )
 from src.features.circuit_features import add_grid_conversion
 from src.features.team_features import (
@@ -171,9 +172,11 @@ FEATURE_COLS = [
     "team_pit_delta_s",         # team median pit time - field median (negative = faster)
     # Sprint result
     "sprint_position_rel",      # sprint_position / n_starters (0.5 = neutral for non-sprint weekends)
+    # Driver experience / rookie penalty
+    "driver_experience_norm",   # prior career starts / 100, clipped [0,1]; 0=debut, 1=veteran (100+ races)
 ]
 
-TARGET_COLS = ["p1", "p2", "p3", "podium", "finish_position"]
+TARGET_COLS = ["p1", "p2", "p3", "podium", "finish_position", "target_position"]
 
 # Identifier columns (preserved but not features)
 ID_COLS = ["year", "round", "circuit_key", "race_date", "driver", "team"]
@@ -228,6 +231,7 @@ def build_feature_matrix(
     df = add_driver_start_delta(df)
     df = add_elo_ratings(df)
     df = add_championship_pressure(df)
+    df = add_driver_experience(df)
     df = add_grid_conversion(df)
 
     # Team features
@@ -310,7 +314,7 @@ def build_feature_matrix(
     # ------------------------------------------------------------------ #
     # 4. Merge free practice features (FP1/FP2/FP3)
     # ------------------------------------------------------------------ #
-    df = merge_practice_features(df, practice_df)
+    df = merge_practice_features(df, practice_df, sprint_df=sprint_df)
 
     # ------------------------------------------------------------------ #
     # 4b. Derived quali features (computed after quali merge)
@@ -403,6 +407,15 @@ def build_feature_matrix(
         if df[col].isna().any():
             median = df[col].median()
             df[col] = df[col].fillna(median if not np.isnan(median) else 0.0)
+
+    # ------------------------------------------------------------------ #
+    # 5b. target_position: finish_position with DNFs → n_starters_in_race + 1
+    # n_starters is counted from actual driver rows in that race, so it is
+    # always grid-size accurate (20 in 2014–2024, 22 from 2025+, etc.).
+    # ------------------------------------------------------------------ #
+    n_starters = df.groupby(["year", "round"])["driver"].transform("count")
+    df["target_position"] = pd.to_numeric(df.get("finish_position"), errors="coerce")
+    df["target_position"] = df["target_position"].fillna(n_starters + 1)
 
     # ------------------------------------------------------------------ #
     # 6. Encode categoricals as integer codes (for NN embeddings)

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     reddit_client_secret: str = ""
     reddit_user_agent: str = "f1_prediction_bot/1.0"
 
+
     # Derived project paths (resolved relative to project root)
     root_dir: Path = ROOT_DIR
     data_raw_dir: Path = ROOT_DIR / "data" / "raw"

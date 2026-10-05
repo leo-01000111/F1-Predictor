@@ -291,6 +291,34 @@ def add_championship_pressure(race_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_driver_experience(race_df: pd.DataFrame, veteran_threshold: int = 100) -> pd.DataFrame:
+    """
+    Career race starts BEFORE each race, normalised to [0, 1].
+
+    driver_experience_norm = min(prior_starts / veteran_threshold, 1.0)
+
+    Interpretation:
+      0.00 = debut (0 prior starts)
+      0.25 = ~1 season  (25 starts)
+      0.50 = ~2.5 seasons (50 starts)
+      1.00 = veteran (100+ starts)
+
+    Uses shift(1) so the current race is never counted.
+    Rookie drivers with low values tend to under-perform their qualifying
+    position in high-chaos races; XGBoost can learn this interaction directly.
+    """
+    df = race_df.copy().sort_values(["driver", "year", "round"])
+
+    df["_race_count"] = (
+        df.groupby("driver").cumcount()  # 0-indexed count of rows so far
+    )
+    # cumcount gives count of preceding rows in the group, which equals prior starts
+    # (since each row = one race, sorted by year/round)
+    df["driver_experience_norm"] = (df["_race_count"] / veteran_threshold).clip(upper=1.0)
+    df = df.drop(columns=["_race_count"])
+    return df
+
+
 def add_teammate_quali_delta(qual_df: pd.DataFrame) -> pd.DataFrame:
     """
     Quali gap vs teammate: driver's quali_gap_to_pole - teammate's quali_gap_to_pole.

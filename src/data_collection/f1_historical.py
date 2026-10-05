@@ -30,19 +30,46 @@ fastf1.Cache.enable_cache(str(CACHE_DIR))
 LONG_RUN_MIN_LAPS = 5
 
 
+_RATE_LIMIT_PHRASES = ("500 calls", "rate limit", "429", "too many requests", "ratelimit")
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(phrase in msg for phrase in _RATE_LIMIT_PHRASES)
+
+
 def _load_session_safe(
     year: int,
     round_num: int,
     session_type: str,
     load_laps: bool = False,
+    max_retries: int = 3,
 ) -> Optional[fastf1.core.Session]:
-    try:
-        session = fastf1.get_session(year, round_num, session_type)
-        session.load(laps=load_laps, telemetry=False, weather=False, messages=False)
-        return session
-    except Exception as exc:
-        logger.warning(f"Failed to load {year} R{round_num} {session_type}: {exc}")
-        return None
+    """Load a FastF1 session, retrying with exponential backoff on rate-limit errors."""
+    wait = 90  # seconds before first retry on rate limit
+    for attempt in range(max_retries):
+        try:
+            session = fastf1.get_session(year, round_num, session_type)
+            session.load(laps=load_laps, telemetry=False, weather=False, messages=False)
+            return session
+        except Exception as exc:
+            if _is_rate_limit_error(exc):
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Rate limited on {year} R{round_num} {session_type} — "
+                        f"waiting {wait}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait)
+                    wait *= 2  # 90s -> 180s -> 360s
+                else:
+                    logger.warning(
+                        f"Rate limit persists for {year} R{round_num} {session_type} "
+                        f"after {max_retries} attempts — skipping. Resume later with --merge."
+                    )
+            else:
+                logger.warning(f"Failed to load {year} R{round_num} {session_type}: {exc}")
+                return None
+    return None
 
 
 def _extract_race_result(session: fastf1.core.Session, year: int) -> pd.DataFrame:
@@ -466,22 +493,64 @@ def load_pit_stops() -> pd.DataFrame:
 
 
 def _extract_sprint_result(session: fastf1.core.Session, year: int) -> pd.DataFrame:
-    """Extract sprint race finishing positions."""
+    """
+    Extract sprint race finishing positions + lap-based pace features.
+
+    Lap features (only present when session was loaded with load_laps=True):
+      sprint_best_lap_gap_s : driver best lap - session best lap (gap to fastest)
+      sprint_pace_gap_s     : driver median mid-race pace - session median mid-race pace
+                              (mid-race = laps 2..n-2, avoids standing start and push laps)
+    Both are clipped to plausible ranges. NaN when laps not loaded.
+    """
     results = session.results
     if results is None or results.empty:
         return pd.DataFrame()
 
     n_starters = len(results)
+
+    # --- Lap-based pace extraction (optional) ---
+    sprint_best_gap: dict[str, float] = {}
+    sprint_pace_gap: dict[str, float] = {}
+    try:
+        laps = session.laps
+        if laps is not None and not laps.empty and "LapTime" in laps.columns:
+            lap_s = laps["LapTime"].dt.total_seconds()
+            valid = laps.copy()
+            valid["lap_s"] = lap_s
+            valid = valid[valid["lap_s"].between(40.0, 200.0)]
+
+            if not valid.empty:
+                session_best = valid["lap_s"].min()
+                max_lap_num = valid["LapNumber"].max()
+                mid = valid[
+                    (valid["LapNumber"] > 1) & (valid["LapNumber"] < max_lap_num - 1)
+                ]
+                session_mid_median = mid["lap_s"].median() if not mid.empty else None
+
+                for drv_abbr, drv_laps in valid.groupby("Driver"):
+                    best_gap = float(np.clip(drv_laps["lap_s"].min() - session_best, 0.0, 10.0))
+                    sprint_best_gap[str(drv_abbr)] = best_gap
+
+                    drv_mid = mid[mid["Driver"] == drv_abbr]["lap_s"]
+                    if not drv_mid.empty and session_mid_median is not None:
+                        pace = float(np.clip(drv_mid.median() - session_mid_median, -5.0, 10.0))
+                        sprint_pace_gap[str(drv_abbr)] = pace
+    except Exception as exc:
+        logger.debug(f"Sprint lap extraction skipped: {exc}")
+
     rows = []
     for _, row in results.iterrows():
         position = row.get("Position", None)
+        abbr = str(row.get("Abbreviation", ""))
         rows.append({
             "year": year,
             "round": int(session.event.RoundNumber),
             "circuit_key": session.event.EventName.lower().replace(" ", "_").replace("grand_prix", "gp"),
-            "driver": row.get("Abbreviation", ""),
+            "driver": abbr,
             "sprint_position": int(float(position)) if pd.notna(position) else None,
             "n_sprint_starters": n_starters,
+            "sprint_best_lap_gap_s": sprint_best_gap.get(abbr, np.nan),
+            "sprint_pace_gap_s": sprint_pace_gap.get(abbr, np.nan),
         })
     return pd.DataFrame(rows)
 
@@ -491,12 +560,17 @@ def collect_sprint_results(
     end_year: int = 2025,
     sleep_between_sessions: float = 1.5,
     merge_existing: bool = False,
+    include_laps: bool = True,
 ) -> pd.DataFrame:
     """
     Collect sprint race results via FastF1 (sprints started in 2021).
 
     Saves to data/raw/sprint_results.parquet with columns:
-        year, round, circuit_key, driver, sprint_position, n_sprint_starters
+        year, round, circuit_key, driver, sprint_position, n_sprint_starters,
+        sprint_best_lap_gap_s, sprint_pace_gap_s   (when include_laps=True)
+
+    include_laps=True (default): also extracts lap-based pace features used to
+        substitute fp2_best_gap_s / fp_long_run_delta on sprint weekends.
     """
     sprint_path = RAW_DIR / "sprint_results.parquet"
     existing = pd.DataFrame()
@@ -504,6 +578,19 @@ def collect_sprint_results(
     if merge_existing and sprint_path.exists():
         existing = pd.read_parquet(sprint_path)
         logger.info(f"Loaded existing sprint data: {len(existing)} rows")
+
+    # If existing data is missing the pace columns, re-fetch everything so we
+    # don't silently leave sprint weekends with no lap-pace data.
+    has_pace_cols = (
+        "sprint_best_lap_gap_s" in existing.columns
+        and "sprint_pace_gap_s" in existing.columns
+    )
+    if merge_existing and include_laps and not has_pace_cols and not existing.empty:
+        logger.info(
+            "Existing sprint_results.parquet is missing lap-pace columns "
+            "(sprint_best_lap_gap_s / sprint_pace_gap_s). Re-fetching all sprint rounds."
+        )
+        existing = pd.DataFrame()
 
     existing_keys: set[tuple[int, int]] = set()
     if not existing.empty:
@@ -536,7 +623,7 @@ def collect_sprint_results(
             # Try both FastF1 sprint session identifiers
             session = None
             for stype in ["Sprint", "S"]:
-                session = _load_session_safe(year, rnd, stype)
+                session = _load_session_safe(year, rnd, stype, load_laps=include_laps)
                 if session is not None:
                     break
 

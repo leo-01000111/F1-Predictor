@@ -56,9 +56,9 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             ledger = race_df[display_cols].sort_values(["year", "round"] if {"year", "round"}.issubset(race_df.columns) else display_cols[:1]).copy()
             if {"year", "round"}.issubset(ledger.columns):
                 ledger["context"] = (ledger["year"].astype(int) == year) & (ledger["round"].astype(int) == round_num)
-                st.dataframe(ledger[["context"] + display_cols], use_container_width=True, height=300, hide_index=True)
+                st.dataframe(ledger[["context"] + display_cols], width="stretch", height=300, hide_index=True)
             else:
-                st.dataframe(ledger, use_container_width=True, height=300, hide_index=True)
+                st.dataframe(ledger, width="stretch", height=300, hide_index=True)
     else:
         st.caption("No holdout race ledger available.")
 
@@ -80,7 +80,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
                 xaxis=_dark_axes(), yaxis=_dark_axes(),
                 margin=dict(l=8, r=8, t=35, b=8), **_PLOTLY_DARK,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.caption("Winner accuracy trend unavailable.")
 
@@ -97,7 +97,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
                 legend=dict(bgcolor="rgba(0,0,0,0)"),
                 margin=dict(l=8, r=8, t=35, b=8), **_PLOTLY_DARK,
             )
-            st.plotly_chart(fig_ece, use_container_width=True)
+            st.plotly_chart(fig_ece, width="stretch")
         else:
             st.caption("ECE trend unavailable.")
 
@@ -116,7 +116,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             legend=dict(bgcolor="rgba(0,0,0,0)"),
             margin=dict(l=8, r=8, t=8, b=8), **_PLOTLY_DARK,
         )
-        st.plotly_chart(fig_cal, use_container_width=True)
+        st.plotly_chart(fig_cal, width="stretch")
     else:
         st.caption("Calibration curve unavailable.")
 
@@ -137,5 +137,5 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             })
         st.dataframe(
             pd.DataFrame(rows).sort_values(["Year", "Round"], ascending=[False, False]),
-            use_container_width=True, hide_index=True,
+            width="stretch", hide_index=True,
         )

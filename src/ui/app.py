@@ -136,7 +136,7 @@ def _render_header(year: int, round_num: int) -> tuple[int, int]:
         st.markdown(f"<div style='padding-top:0.3rem;'>{chips}</div>", unsafe_allow_html=True)
 
     with col_actions:
-        if st.button("Refresh", key="btn_header_refresh", use_container_width=True):
+        if st.button("Refresh", key="btn_header_refresh", width="stretch"):
             services.invalidate_data_caches()
             st.rerun()
 

@@ -259,6 +259,7 @@ def _resolve_circuit_coords(circuit_key: str) -> Optional[tuple[float, float]]:
         "belgian_grand_prix": "belgium",
         "hungarian_gp": "hungary",
         "hungarian_grand_prix": "hungary",
+        "shanghai": "china",
         "chinese_gp": "china",
         "chinese_grand_prix": "china",
         "british_gp": "great_britain",

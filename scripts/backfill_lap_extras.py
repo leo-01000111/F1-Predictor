@@ -43,7 +43,8 @@ def main() -> None:
     )
     parser.add_argument("--start", type=int, default=2018, help="Start year (default 2018 — FastF1 lap data unavailable before 2018)")
     parser.add_argument("--end", type=int, default=2025, help="End year inclusive (default 2025)")
-    parser.add_argument("--sleep", type=float, default=2.0, help="Sleep seconds between sessions")
+    parser.add_argument("--sleep", type=float, default=8.0,
+                        help="Sleep seconds between sessions (default 8.0 — FastF1 API is 500 calls/h)")
     parser.add_argument(
         "--merge",
         action="store_true",

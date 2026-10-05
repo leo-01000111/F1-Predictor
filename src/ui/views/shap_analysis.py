@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -31,7 +30,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
     st.markdown("<div class='f1-section-title'>Global Feature Impact -- Mean |SHAP| (P1)</div>", unsafe_allow_html=True)
 
     if shap_df is not None and not shap_df.empty:
-        ignored = {"driver", "year", "round", "p1", "pred_p1"}
+        ignored = {"driver", "year", "round", "p1", "pred_p1", "pred_position"}
         feat_cols = [c for c in shap_df.columns if c not in ignored]
 
         if feat_cols:
@@ -53,7 +52,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
                 margin=dict(l=8, r=8, t=8, b=8),
                 **_PLOTLY_DARK,
             )
-            st.plotly_chart(fig_global, use_container_width=True)
+            st.plotly_chart(fig_global, width="stretch")
     else:
         st.markdown(
             "<div class='f1-card f1-muted' style='padding:1.5rem; text-align:center;'>"
@@ -64,36 +63,29 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
 
     st.markdown("<div class='f1-divider'></div>", unsafe_allow_html=True)
 
-    # ── Section 2: P1 / P2 / P3 XGB importance comparison ────────────────
-    st.markdown("<div class='f1-section-title'>XGBoost Feature Importance -- P1 / P2 / P3</div>", unsafe_allow_html=True)
+    # ── Section 2: XGBRacePredictor feature importance ───────────────────
+    st.markdown("<div class='f1-section-title'>XGBoost Feature Importance -- Finish Position Model</div>", unsafe_allow_html=True)
 
     if imp_df is not None and not imp_df.empty:
-        top_feats = (
-            imp_df.groupby("feature")["importance"].mean()
-            .sort_values(ascending=False)
-            .head(15)
-            .index.tolist()
-        )
-        sub_imp = imp_df[imp_df["feature"].isin(top_feats)]
-
-        fig_compare = px.bar(
-            sub_imp.sort_values("importance", ascending=True),
-            x="importance",
-            y="feature",
-            color="target",
+        top_imp = imp_df.sort_values("importance", ascending=True).tail(20)
+        fig_compare = go.Figure(go.Bar(
+            x=top_imp["importance"].values,
+            y=top_imp["feature"].values,
             orientation="h",
-            barmode="group",
-            color_discrete_map={"p1": "#e8002d", "p2": "#f59e0b", "p3": "#3b82f6"},
-        )
+            marker=dict(
+                color=top_imp["importance"].values,
+                colorscale=[[0, "#1e3a5f"], [0.5, "#2563eb"], [1, "#e8002d"]],
+                showscale=False,
+            ),
+        ))
         fig_compare.update_layout(
             height=420,
             xaxis=dict(title="Importance", **_dark_axes()),
             yaxis=dict(title="", **_dark_axes()),
-            legend=dict(bgcolor="rgba(0,0,0,0)"),
             margin=dict(l=8, r=8, t=8, b=8),
             **_PLOTLY_DARK,
         )
-        st.plotly_chart(fig_compare, use_container_width=True)
+        st.plotly_chart(fig_compare, width="stretch")
     else:
         st.caption("XGBoost feature importance unavailable (model not loaded).")
 
@@ -126,7 +118,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
 
     with col_waterfall:
         if shap_df is not None and not shap_df.empty and driver_pick:
-            ignored = {"driver", "year", "round", "p1", "pred_p1"}
+            ignored = {"driver", "year", "round", "p1", "pred_p1", "pred_position"}
             feat_cols = [c for c in shap_df.columns if c not in ignored]
 
             # Try to get race-specific SHAP first, fall back to driver average
@@ -167,12 +159,12 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
                 fig_wf.update_layout(
                     title=dict(text=subtitle, font=dict(size=11, color="#8b949e"), x=0),
                     height=420,
-                    xaxis=dict(title="SHAP value (+ = raises P(Win))", **_dark_axes()),
+                    xaxis=dict(title="SHAP value (- = lower predicted finish position)", **_dark_axes()),
                     yaxis=dict(title="", **_dark_axes()),
                     margin=dict(l=8, r=8, t=30, b=8),
                     **_PLOTLY_DARK,
                 )
-                st.plotly_chart(fig_wf, use_container_width=True)
+                st.plotly_chart(fig_wf, width="stretch")
             else:
                 st.caption(f"No SHAP data found for {driver_pick}.")
         else:
@@ -237,6 +229,6 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             margin=dict(l=8, r=8, t=8, b=8),
             **_PLOTLY_DARK,
         )
-        st.plotly_chart(fig_corr, use_container_width=True)
+        st.plotly_chart(fig_corr, width="stretch")
     except Exception as exc:
         st.caption(f"Correlation view unavailable: {exc}")

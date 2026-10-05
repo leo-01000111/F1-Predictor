@@ -21,7 +21,7 @@ def _render_preflight(report: dict) -> None:
     st.markdown(services.task_status_chip(status), unsafe_allow_html=True)
     checks = report.get("checks", []) or []
     if checks:
-        st.dataframe(pd.DataFrame(checks), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(checks), width="stretch", hide_index=True)
     for e in report.get("errors", []) or []:
         st.error(str(e))
     for w in report.get("warnings", []) or []:
@@ -69,16 +69,14 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
 
     action_choice = st.radio(
         "Action",
-        ["run_inference", "record_actual", "quick_retrain", "full_retrain"],
+        ["run_inference", "record_actual", "post_race_retrain", "quick_retrain", "full_retrain"],
         horizontal=True, key="cp_action",
     )
 
     report = services.get_preflight_report(action_choice, cp_year, cp_round)
     _render_preflight(report)
 
-    if action_choice == "run_inference":
-        payload = {"year": cp_year, "round_num": cp_round}
-    elif action_choice == "record_actual":
+    if action_choice in ("run_inference", "record_actual", "post_race_retrain"):
         payload = {"year": cp_year, "round_num": cp_round}
     else:
         payload = {}
@@ -89,7 +87,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             action_choice.replace("_", " ").title(),
             type="primary",
             disabled=not bool(report.get("ready", False)),
-            use_container_width=True,
+            width="stretch",
             key="cp_queue_btn",
         ):
             _submit_task(action_choice, payload)
@@ -115,7 +113,7 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
             }
             for t in active_tasks
         ]
-        st.dataframe(pd.DataFrame(task_rows), use_container_width=True, height=220, hide_index=True)
+        st.dataframe(pd.DataFrame(task_rows), width="stretch", height=220, hide_index=True)
     else:
         st.caption("No tasks.")
 

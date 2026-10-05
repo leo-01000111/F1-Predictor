@@ -70,14 +70,17 @@ def main() -> None:
 
     if do_sprint:
         sprint_start = max(args.start, 2021)
-        logger.info(f"Collecting sprint results {sprint_start}-{args.end}...")
+        logger.info(f"Collecting sprint results {sprint_start}-{args.end} (with lap-pace data)...")
         sprint_df = collect_sprint_results(
             start_year=sprint_start,
             end_year=args.end,
             sleep_between_sessions=args.sleep * 3,
             merge_existing=args.merge,
+            include_laps=True,
         )
-        logger.info(f"Sprint collection done: {len(sprint_df)} rows")
+        has_pace = "sprint_best_lap_gap_s" in sprint_df.columns
+        filled = sprint_df["sprint_best_lap_gap_s"].notna().sum() if has_pace else 0
+        logger.info(f"Sprint collection done: {len(sprint_df)} rows | pace data: {filled} driver-rounds")
 
     logger.info("Done. Now rebuild features: python -m src.features.build_features")
 

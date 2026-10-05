@@ -840,9 +840,9 @@ def get_selected_race() -> tuple[int, int]:
 
 def load_xgb_feature_importance() -> Optional[pd.DataFrame]:
     try:
-        from src.models.xgb_model import XGBPodiumPredictor
+        from src.models.xgb_model import XGBRacePredictor
 
-        model = XGBPodiumPredictor.load("xgb_podium")
+        model = XGBRacePredictor.load("xgb_race")
         return model.feature_importances()
     except Exception:
         return None
@@ -1051,6 +1051,12 @@ def _run_task(task_id: str) -> None:
             result = runner.quick_retrain(context=context)
         elif kind == "full_retrain":
             result = runner.full_retrain(context=context)
+        elif kind == "post_race_retrain":
+            result = runner.post_race_retrain(
+                year=int(payload.get("year", 2026)),
+                round_num=int(payload.get("round_num", 1)),
+                context=context,
+            )
         else:
             raise RuntimeError(f"Unsupported task kind: {kind}")
     except TaskCancelledError:
@@ -1191,7 +1197,7 @@ def recommended_next_action(year: int, round_num: int) -> str:
         return "run_inference"
     if not has_actual_result(year, round_num):
         return "record_actual"
-    return "quick_retrain"
+    return "post_race_retrain"
 
 
 def runtime_estimate_label(kind: str) -> str:
@@ -1200,6 +1206,7 @@ def runtime_estimate_label(kind: str) -> str:
         "record_actual": "~30-90 sec",
         "quick_retrain": "~3-8 min",
         "full_retrain": "~10-30+ min",
+        "post_race_retrain": "~5-12 min",
     }
     return labels.get(kind, "varies")
 
@@ -1250,6 +1257,12 @@ def get_preflight_report(action: str, year: int, round_num: int) -> dict[str, An
         feature_matrix = PROCESSED_DIR / "feature_matrix.parquet"
         if not feature_matrix.exists():
             errors.append("Feature matrix missing at data/processed/feature_matrix.parquet.")
+    elif kind == "post_race_retrain":
+        raw_race = ROOT / "data" / "raw" / "race_results.parquet"
+        if not raw_race.exists():
+            errors.append("race_results.parquet missing. Run f1_historical data collection first.")
+        if not has_actual_result(year, round_num):
+            warnings.append("Actual result not yet recorded for this round. Run 'record_actual' first.")
     else:
         errors.append(f"Unsupported action kind: {kind}")
 
