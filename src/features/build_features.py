@@ -13,6 +13,7 @@ Output:
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +32,7 @@ from src.features.driver_features import (
     add_wet_performance,
     add_championship_pressure,
     add_driver_experience,
+    season_length,
 )
 from src.features.circuit_features import add_grid_conversion
 from src.features.team_features import (
@@ -42,10 +44,12 @@ from src.features.team_features import (
 )
 from src.features.weather_features import merge_weather
 from src.features.practice_features import merge_practice_features
+from src.features.circuits import canonicalize_circuits
 
 ROOT = Path(__file__).parent.parent.parent
 PROCESSED_DIR = ROOT / "data" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+FILL_VALUES_PATH = PROCESSED_DIR / "feature_fill_values.json"
 
 # --------------------------------------------------------------------------- #
 # Circuit metadata lookups (hardcoded — changes very rarely)
@@ -206,7 +210,9 @@ def build_feature_matrix(
     # ------------------------------------------------------------------ #
     # These columns activate driver_start_delta_avg and start_compound_code.
     # If not provided, those features fall back to 0.0 / Medium respectively.
-    df = race_df.copy()
+    # Canonical track IDs first, so circuit history and the circuit lookups
+    # use the same keys as inference (see src/features/circuits.py).
+    df = canonicalize_circuits(race_df)
     if lap_extras_df is not None and not lap_extras_df.empty:
         extras_cols = [c for c in ["year", "round", "driver", "lap1_position", "start_compound"]
                        if c in lap_extras_df.columns]
@@ -251,6 +257,10 @@ def build_feature_matrix(
     else:
         quali_sub = quali_sub.rename(columns={"quali_position": "quali_position_from_q"})
 
+    # race_results also has a quali_gap_to_pole_s column (always empty). Without
+    # dropping it the merge made _x/_y columns, the real one was reset to NaN and
+    # quali_gap_relative, teammate_quali_delta and car_pace_delta_pct were all 0.
+    df = df.drop(columns=["quali_gap_to_pole_s"], errors="ignore")
     df = df.merge(quali_sub, on=["year", "round", "driver"], how="left")
 
     # Fill grid_position from qualifying if not already in race results
@@ -259,6 +269,8 @@ def build_feature_matrix(
 
     if "quali_gap_to_pole_s" not in df.columns:
         df["quali_gap_to_pole_s"] = np.nan
+    # Clip outliers (raw gaps can exceed 60 s) before any feature uses them
+    df["quali_gap_to_pole_s"] = pd.to_numeric(df["quali_gap_to_pole_s"], errors="coerce").clip(upper=5.0)
 
     # Teammate delta (requires quali data)
     quali_with_delta = add_teammate_quali_delta(
@@ -357,7 +369,9 @@ def build_feature_matrix(
     # 0.0 = season opener, 1.0 = season finale.
     # Captures early-vs-late-season dynamics (development race, tyre knowledge, etc.).
     if "round" in df.columns and "year" in df.columns:
-        season_max = df.groupby("year")["round"].transform("max")
+        # season_length(): an unfinished season uses its calendar length
+        # (R18 of 23 would otherwise be 1.0), like inference does
+        season_max = season_length(df)
         df["round_fraction"] = (df["round"] - 1) / (season_max - 1).clip(lower=1)
     else:
         df["round_fraction"] = 0.0
@@ -402,11 +416,16 @@ def build_feature_matrix(
         if col not in df.columns:
             df[col] = np.nan
 
-    # Impute missing numeric features with column median
+    # Impute missing numeric features with column median. The fill values are
+    # saved next to the matrix so inference imputes a single race the same way
+    # (a per-race median gives e.g. a rookie different circuit history).
+    fill_values: dict[str, float] = {}
     for col in FEATURE_COLS:
+        median = df[col].median()
+        fill_values[col] = float(median) if not np.isnan(median) else 0.0
         if df[col].isna().any():
-            median = df[col].median()
-            df[col] = df[col].fillna(median if not np.isnan(median) else 0.0)
+            df[col] = df[col].fillna(fill_values[col])
+    df.attrs["fill_values"] = fill_values
 
     # ------------------------------------------------------------------ #
     # 5b. target_position: finish_position with DNFs → n_starters_in_race + 1
@@ -432,6 +451,17 @@ def save_feature_matrix(df: pd.DataFrame) -> None:
     path = PROCESSED_DIR / "feature_matrix.parquet"
     df.to_parquet(path, index=False)
     logger.info(f"Saved feature matrix -> {path}")
+    if df.attrs.get("fill_values"):
+        with open(FILL_VALUES_PATH, "w", encoding="utf-8") as f:
+            json.dump(df.attrs["fill_values"], f, indent=2)
+
+
+def load_fill_values() -> dict[str, float]:
+    """Training-time imputation values per feature ({} if not saved yet)."""
+    if not FILL_VALUES_PATH.exists():
+        return {}
+    with open(FILL_VALUES_PATH, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _backfill_missing_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:

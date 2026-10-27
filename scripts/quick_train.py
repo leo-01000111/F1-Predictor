@@ -59,7 +59,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use-tuned-params", action="store_true",
                         help="Load XGB params from models/optuna_best_params.json")
-    args = parser.parse_args()
+    # parse_known_args: post_race_retrain.py calls main() with its own --year/--round in argv
+    args, _ = parser.parse_known_args()
 
     from src.data_collection.f1_historical import (
         load_lap_extras,

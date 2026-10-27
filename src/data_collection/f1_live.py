@@ -551,7 +551,9 @@ def get_completed_season_race_results(year: int, max_round: Optional[int] = None
         if results is None or results.empty:
             continue
 
-        circuit_key = str(event.get("OfficialEventName", "unknown")).lower().replace(" ", "_")[:32]
+        # Same key format as f1_historical (EventName based), so in-season rows
+        # written to race_results.parquet match the historical ones
+        circuit_key = str(event.get("EventName", "unknown")).lower().replace(" ", "_").replace("grand_prix", "gp")
         circuit = str(event.get("Location", event.get("EventName", "unknown")))
         race_date = ""
         try:

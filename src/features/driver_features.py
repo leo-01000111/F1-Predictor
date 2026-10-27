@@ -6,6 +6,7 @@ All features are computed using only data available BEFORE the race
 from __future__ import annotations
 
 from collections import deque
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -265,6 +266,34 @@ def add_wet_performance(race_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def scheduled_rounds(year: int) -> Optional[int]:
+    """Number of rounds on the FastF1 calendar for `year` (None if unavailable)."""
+    try:
+        import fastf1
+
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        n = pd.to_numeric(schedule["RoundNumber"], errors="coerce").max()
+        return int(n) if pd.notna(n) else None
+    except Exception:
+        return None
+
+
+def season_length(df: pd.DataFrame) -> pd.Series:
+    """Rounds in each row's season.
+
+    Max observed round per year, except the latest year, which may be
+    unfinished (R18 of 23 looks like a finale); that one uses the calendar,
+    so training and inference agree.
+    """
+    observed = df.groupby("year")["round"].transform("max")
+    latest = int(df["year"].max())
+    scheduled = scheduled_rounds(latest)
+    if scheduled:
+        latest_max = int(observed[df["year"] == latest].max())
+        observed = observed.where(df["year"] != latest, max(scheduled, latest_max))
+    return observed
+
+
 def add_championship_pressure(race_df: pd.DataFrame) -> pd.DataFrame:
     """
     Championship pressure index: how much ground a driver must recover.
@@ -282,7 +311,7 @@ def add_championship_pressure(race_df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     leader_pts = df.groupby(["year", "round"])["cum_points_before"].transform("max")
-    season_max_round = df.groupby("year")["round"].transform("max")
+    season_max_round = season_length(df)
     remaining_races = (season_max_round - df["round"]).clip(lower=0)
     max_remaining = (25 * remaining_races).clip(lower=1)
     gap = (leader_pts - df["cum_points_before"]).clip(lower=0)

@@ -38,7 +38,7 @@ def run_inference(
 
     Returns a prediction document and writes data/predictions/{year}_R{round}.json.
     """
-    from src.features.build_features import FEATURE_COLS, load_feature_matrix
+    from src.features.build_features import FEATURE_COLS, load_feature_matrix, load_fill_values
     from src.features.driver_features import (
         add_circuit_history,
         add_championship_standing,
@@ -51,6 +51,7 @@ def run_inference(
         add_driver_experience,
     )
     from src.features.circuit_features import add_grid_conversion
+    from src.features.circuits import canonical_circuit, canonicalize_circuits
     from src.features.practice_features import merge_practice_features
     from src.features.team_features import (
         add_constructor_standing,
@@ -74,6 +75,10 @@ def run_inference(
     logger.info(f"Running inference for {year} R{round_num}")
 
     circuit_key = quali_df["circuit_key"].iloc[0] if "circuit_key" in quali_df.columns else "unknown"
+    circuit_location = quali_df["circuit"].iloc[0] if "circuit" in quali_df.columns else None
+    # Canonical track ID: the same key the training feature matrix uses
+    circuit_id = canonical_circuit(circuit_key, circuit_location, year)
+    logger.info(f"Circuit '{circuit_key}' ({circuit_location}) -> canonical '{circuit_id}'")
     race_date = quali_df["race_date"].iloc[0] if "race_date" in quali_df.columns else ""
     drivers = quali_df["driver_abbr"].tolist()
     teams = quali_df["team"].tolist()
@@ -88,7 +93,7 @@ def run_inference(
                 "year": year,
                 "round": round_num,
                 "circuit": row.get("circuit", circuit_key),
-                "circuit_key": circuit_key,
+                "circuit_key": circuit_id,
                 "race_date": race_date,
                 "driver": row.get("driver_abbr", row.get("driver", "")),
                 "team": row.get("team", "Unknown"),
@@ -110,8 +115,19 @@ def run_inference(
 
     upcoming_df = pd.DataFrame(upcoming_rows)
 
+    # Training merges lap extras into race history (build_features step 0); without
+    # lap1_position here driver_start_delta_avg was 0.0 for every driver
+    if "lap1_position" not in race_df_history.columns:
+        try:
+            from src.data_collection.f1_historical import load_lap_extras
+
+            lap = load_lap_extras()[["year", "round", "driver", "lap1_position"]]
+            race_df_history = race_df_history.merge(lap, on=["year", "round", "driver"], how="left")
+        except Exception as exc:
+            logger.warning(f"No lap extras for history ({exc}); driver_start_delta_avg will be 0")
+
     combined = pd.concat([race_df_history, upcoming_df], ignore_index=True)
-    combined = combined.sort_values(["year", "round"])
+    combined = canonicalize_circuits(combined).sort_values(["year", "round"])
 
     combined = add_driver_form(combined)
     combined = add_championship_standing(combined)
@@ -129,7 +145,8 @@ def run_inference(
 
     feat_df = combined[(combined["year"] == year) & (combined["round"] == round_num)].copy()
 
-    # Teammate delta
+    # Teammate delta (gap clipped first, as in training)
+    feat_df["quali_gap_to_pole_s"] = pd.to_numeric(feat_df["quali_gap_to_pole_s"], errors="coerce").clip(upper=5.0)
     quali_temp = feat_df[["year", "round", "driver", "team", "quali_gap_to_pole_s"]].copy()
     quali_with_delta = add_teammate_quali_delta(quali_temp)
     feat_df = feat_df.merge(
@@ -167,7 +184,10 @@ def run_inference(
 
     # 2. Weather
     weather_row = pd.DataFrame([{"year": year, "round": round_num, **weather_dict}])
-    feat_df = merge_weather(feat_df, weather_row)
+    # feat_df already carries is_wet_race from the upcoming rows; without dropping
+    # it the merge made is_wet_race_x/_y and the feature silently defaulted to 0
+    weather_row["is_wet_race"] = is_wet
+    feat_df = merge_weather(feat_df.drop(columns=["is_wet_race"], errors="ignore"), weather_row)
 
     # 2b. Wet-race driver performance
     # raw race_df_history doesn't have is_wet_race, so we load the pre-computed
@@ -183,8 +203,23 @@ def run_inference(
     except Exception:
         feat_df["driver_wet_avg_finish"] = np.nan
 
-    # 3. Practice (sprint_df passed so sprint weekends get real pace data instead of median)
-    feat_df = merge_practice_features(feat_df, practice_df, sprint_df=sprint_df)
+    # 3. Practice. The training matrix has no FP data (practice_results.parquet was
+    # never collected): FP columns there are sprint pace on sprint weekends and the
+    # training-wide median otherwise. Live OpenF1 practice is therefore NOT fed to
+    # the model; the same sprint substitution + training medians are used instead.
+    if practice_df is not None and not practice_df.empty:
+        logger.info("Live practice data ignored for model input (not present in training data)")
+    train_fill = load_fill_values()
+    if not train_fill:
+        # Matrix built before fill values were saved: its post-imputation median
+        # equals the fill value for columns that were mostly imputed (FP columns)
+        logger.warning("feature_fill_values.json missing; rebuild features (quick_train.py)")
+        try:
+            fm_hist = load_feature_matrix()
+            train_fill = {c: float(fm_hist[c].median()) for c in FEATURE_COLS if c in fm_hist.columns}
+        except Exception as exc:
+            logger.warning(f"Could not load training medians ({exc}); using per-race median")
+    feat_df = merge_practice_features(feat_df, None, sprint_df=sprint_df, fill_values=train_fill)
 
     # 3b. Derived quali and season features
     feat_df["grid_position"] = pd.to_numeric(feat_df.get("grid_position"), errors="coerce")
@@ -221,16 +256,14 @@ def run_inference(
     except Exception:
         pass
 
-    if race_df_history is not None and not race_df_history.empty:
-        hist_max = pd.to_numeric(race_df_history["round"], errors="coerce").max()
-        if pd.notna(hist_max):
-            season_max_candidates.append(int(hist_max))
+    # (A max over all history years was also a candidate here, so a 24-round
+    # previous season inflated this one; known_max above is already per-year.)
 
     season_max = max(season_max_candidates)
     feat_df["round_fraction"] = (round_num - 1) / max(season_max - 1, 1)
 
     # 3c. Circuit type and safety car rate
-    ck = str(circuit_key).lower()
+    ck = circuit_id
     feat_df["is_street_circuit"] = float(ck in STREET_CIRCUITS)
     feat_df["circuit_safety_car_rate"] = float(CIRCUIT_SC_RATE.get(ck, _DEFAULT_SC_RATE))
 
@@ -252,6 +285,9 @@ def run_inference(
         if col not in feat_df.columns:
             feat_df[col] = 0.0
         if feat_df[col].isna().any():
+            if col in train_fill:
+                feat_df[col] = feat_df[col].fillna(train_fill[col])
+                continue
             med = feat_df[col].median()
             feat_df[col] = feat_df[col].fillna(med if not feat_df[col].isna().all() else 0.0)
 

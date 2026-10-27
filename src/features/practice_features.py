@@ -20,6 +20,7 @@ def merge_practice_features(
     base_df: pd.DataFrame,
     practice_df: pd.DataFrame,
     sprint_df: pd.DataFrame | None = None,
+    fill_values: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """
     Merge FP features into base_df (one row per driver per race).
@@ -31,6 +32,10 @@ def merge_practice_features(
         fp_long_run_delta would otherwise be filled with the column median, the sprint
         race pace is substituted instead — giving real race-pace signal from 30 laps of
         actual racing rather than a neutral placeholder.
+
+    fill_values (optional): per-column fill for remaining NaNs. Inference passes the
+        training matrix medians; without it, the median of base_df itself is used
+        (fine for the full training matrix, wrong for a single race).
     """
     if practice_df is None or practice_df.empty:
         for col in ["fp_best_gap_s", "fp2_best_gap_s", "fp_long_run_delta", "fp_total_laps"]:
@@ -111,6 +116,9 @@ def merge_practice_features(
     # Fill any remaining missing FP data with column median
     for col in ["fp_best_gap_s", "fp2_best_gap_s", "fp_long_run_delta", "fp_total_laps"]:
         if col in merged.columns:
+            if fill_values and col in fill_values:
+                merged[col] = merged[col].fillna(fill_values[col])
+                continue
             median = merged[col].median()
             merged[col] = merged[col].fillna(median if not np.isnan(median) else 0.0)
 

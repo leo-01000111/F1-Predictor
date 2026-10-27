@@ -45,7 +45,8 @@ CIRCUIT_COORDS: dict[str, tuple[float, float]] = {
     "emilia_romagna": (44.3439, 11.7139),
     "monaco": (43.7347, 7.4206),
     "canada": (45.5000, -73.5228),
-    "spain": (41.5700, 2.2611),
+    "spain": (41.5700, 2.2611),        # Barcelona-Catalunya
+    "madrid": (40.4636, -3.6163),      # Madring (Spanish GP from 2026)
     "austria": (47.2197, 14.7647),
     "great_britain": (52.0733, -1.0169),
     "hungary": (47.5789, 19.2486),
@@ -67,6 +68,21 @@ CIRCUIT_COORDS: dict[str, tuple[float, float]] = {
     "turkey": (40.9517, 29.4050),      # Istanbul Park
     "portugal": (38.7597, -9.1491),    # Algarve International Circuit (Portimao)
     "france": (43.2506, 5.7917),       # Circuit Paul Ricard
+}
+
+# Canonical track ID (src/features/circuits.py) -> CIRCUIT_COORDS key
+_TRACK_COORD_KEY: dict[str, str] = {
+    "albert_park": "australia", "shanghai": "china", "suzuka": "japan",
+    "bahrain": "bahrain", "jeddah": "saudi_arabia", "miami": "miami",
+    "montreal": "canada", "monaco": "monaco", "barcelona": "spain",
+    "madrid": "madrid", "red_bull_ring": "austria", "silverstone": "great_britain",
+    "spa": "belgium", "hungaroring": "hungary", "zandvoort": "netherlands",
+    "monza": "italy", "baku": "azerbaijan", "singapore": "singapore",
+    "cota": "united_states", "mexico_city": "mexico", "interlagos": "brazil",
+    "las_vegas": "las_vegas", "losail": "qatar", "abu_dhabi": "abu_dhabi",
+    "imola": "emilia_romagna", "sepang": "malaysia", "sochi": "russia",
+    "istanbul": "turkey", "portimao": "portugal", "paul_ricard": "france",
+    "hockenheim": "germany", "nurburgring": "germany", "mugello": "italy",
 }
 
 WET_RACE_PRECIP_THRESHOLD = 2.0  # mm — cumulative race-day precipitation
@@ -167,7 +183,8 @@ def collect_historical_weather(race_df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"race_df missing columns: {missing}")
 
     # Deduplicate: one row per unique race
-    races = race_df[["year", "round", "circuit_key", "race_date"]].drop_duplicates()
+    race_cols = ["year", "round", "circuit_key", "race_date"] + (["circuit"] if "circuit" in race_df.columns else [])
+    races = race_df[race_cols].drop_duplicates(subset=["year", "round"])
     logger.info(f"Fetching weather for {len(races)} race events")
 
     weather_rows = []
@@ -176,7 +193,7 @@ def collect_historical_weather(race_df: pd.DataFrame) -> pd.DataFrame:
         race_date = str(row["race_date"])
 
         # Try to resolve circuit coordinates
-        coords = _resolve_circuit_coords(circuit_key)
+        coords = _resolve_circuit_coords(circuit_key, year=int(row["year"]), location=row.get("circuit"))
         if coords is None:
             logger.warning(f"Unknown circuit '{circuit_key}', skipping weather")
             continue
@@ -219,8 +236,23 @@ def collect_historical_weather(race_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _resolve_circuit_coords(circuit_key: str) -> Optional[tuple[float, float]]:
-    """Resolve a circuit_key string to (lat, lon). Fuzzy match if needed."""
+def _resolve_circuit_coords(
+    circuit_key: str,
+    year: Optional[int] = None,
+    location: Optional[str] = None,
+) -> Optional[tuple[float, float]]:
+    """Resolve a circuit_key string to (lat, lon). Fuzzy match if needed.
+
+    Tries the canonical track ID first (src/features/circuits.py), which handles
+    event-name keys, OpenF1 short names and venue changes via `year` / `location`
+    (Spanish GP -> Madrid in 2026, 2026 "Bahrain GP" in Kuala Lumpur).
+    """
+    from src.features.circuits import canonical_circuit
+
+    track = canonical_circuit(circuit_key, location, year)
+    if track in _TRACK_COORD_KEY:
+        return CIRCUIT_COORDS[_TRACK_COORD_KEY[track]]
+
     if circuit_key in CIRCUIT_COORDS:
         return CIRCUIT_COORDS[circuit_key]
 
@@ -242,6 +274,8 @@ def _resolve_circuit_coords(circuit_key: str) -> Optional[tuple[float, float]]:
         "hungaroring": "hungary",
         "red_bull_ring": "austria",
         "circuit_de_barcelona": "spain",
+        "barcelona_gp": "spain",            # 2026: Catalunya race renamed Barcelona GP
+        "barcelona_grand_prix": "spain",
         "baku": "azerbaijan",
         "imola": "emilia_romagna",
         "zandvoort": "netherlands",
@@ -329,6 +363,10 @@ def _resolve_circuit_coords(circuit_key: str) -> Optional[tuple[float, float]]:
         "european_gp": "germany",           # approx - held at Nurburgring/Valencia
         "european_grand_prix": "germany",
     }
+    # Exact alias first: substring matching alone sends "spanish_gp" to Spa
+    # because the short alias "spa" is checked before "spanish_gp".
+    if circuit_key in aliases:
+        return CIRCUIT_COORDS.get(aliases[circuit_key])
     for alias, mapped in aliases.items():
         if alias in circuit_key or circuit_key == alias:
             coords = CIRCUIT_COORDS.get(mapped)
@@ -360,7 +398,7 @@ def get_race_day_forecast(circuit_key: str, race_date: str) -> dict:
     Fetch weather forecast for an upcoming race.
     Returns aggregated race-day weather dict.
     """
-    coords = _resolve_circuit_coords(circuit_key)
+    coords = _resolve_circuit_coords(circuit_key, year=pd.to_datetime(race_date).year)
     if coords is None:
         logger.error(f"Cannot find coords for circuit '{circuit_key}'")
         return {}
@@ -387,9 +425,30 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Collect historical weather data for F1 races")
     parser.add_argument("--from-saved", action="store_true", help="Load race data from saved parquet")
+    parser.add_argument("--years", type=int, nargs="+", default=None,
+                        help="Only (re)fetch these seasons and merge into the existing file")
+    parser.add_argument("--circuits", nargs="+", default=None,
+                        help="Also (re)fetch these circuit_keys in every season, merged the same way")
     args = parser.parse_args()
 
     race_df = load_race_results()
-    weather_df = collect_historical_weather(race_df)
+    if args.years is None and args.circuits is None:
+        weather_df = collect_historical_weather(race_df)
+    else:
+        mask = pd.Series(False, index=race_df.index)
+        if args.years:
+            mask |= race_df["year"].isin(args.years)
+        if args.circuits:
+            mask |= race_df["circuit_key"].isin(args.circuits)
+        new_df = collect_historical_weather(race_df[mask])
+        try:
+            existing = load_weather_history()
+        except FileNotFoundError:
+            existing = pd.DataFrame(columns=["year", "round"])
+        # Fetched races replace their old rows; races that failed to fetch keep the old row
+        new_keys = set(zip(new_df["year"], new_df["round"])) if not new_df.empty else set()
+        keep = [(y, r) not in new_keys for y, r in zip(existing["year"], existing["round"])]
+        weather_df = pd.concat([existing[keep], new_df], ignore_index=True).sort_values(["year", "round"])
+        logger.info(f"Fetched {len(new_df)} races, kept {sum(keep)} existing rows")
     save_weather(weather_df)
     logger.info("Done.")
