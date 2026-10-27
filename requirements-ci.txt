@@ -1,0 +1,13 @@
+# Minimal set for the GitHub Actions race-weekend job (scripts/ci_tick.py):
+# data collection, feature build, quick_train, inference. No dashboard,
+# no archived experiments. Versions pinned to the ones that trained the
+# committed model, because xgb_race.pkl is a pickle.
+fastf1==3.8.1
+requests==2.32.3
+pandas==2.2.3
+numpy==2.0.0
+pyarrow==23.0.1
+xgboost==3.2.0
+scikit-learn==1.7.2
+scipy==1.14.1
+loguru==0.7.3

@@ -2,7 +2,7 @@
 
 Predicts finishing-position probabilities (win, P2, P3, podium, top 6, top 10) for every driver before an F1 race. A single XGBoost regressor predicts each driver's finish position, and a Plackett-Luce simulation turns those predictions into a position probability matrix. Training data starts in 2014. A Streamlit dashboard displays the predictions.
 
-The data and trained models are not committed to the repository (`data/` and `models/` are git-ignored). You have to collect data and train a model before the dashboard shows anything.
+The raw and processed data (about 1 MB of parquet), the predictions and results, and the active model (`models/xgb_race.pkl`) are committed, because the GitHub Actions automation below uses them as state. The FastF1 cache and other model artifacts are git-ignored.
 
 ## Quick start
 
@@ -84,6 +84,23 @@ streamlit run src/ui/app.py
 ```
 
 The dashboard is a Streamlit app with four tabs: Race Desk, SHAP Analysis, Historical, and Control Panel. The Control Panel runs inference, result recording and retraining as background tasks. The Race Desk includes an expected-value table that takes a bookmaker odds CSV with the columns `driver, bm_win, bm_1-3, bm_1-6, bm_1-10`.
+
+## Automation (GitHub Actions)
+
+`.github/workflows/race-weekend.yml` runs `scripts/ci_tick.py` every hour from Saturday to Monday (UTC). Each tick reads the FastF1 calendar and the files in `data/`, then does whatever is due:
+
+- 45 minutes after qualifying ends, it predicts the race (`race_weekend_inference.py`).
+- 4 hours after the race, once the result is published, it collects the season's race, qualifying, weather, pit stop and sprint data, records the result against the prediction, and retrains (`quick_train.py`).
+- Every tick, it writes `site/f1-predictions.json` (`scripts/export_site_json.py`). The website copies that file for the live predictions on [leongorecki.eu/projects/f1predictor.html](https://www.leongorecki.eu/projects/f1predictor.html).
+
+The workflow commits the updated data, model and JSON. CI installs `requirements-ci.txt`, whose versions are pinned to the ones that trained the committed pickle. Lap-1 extras are not collected in CI, because FastF1 lap data now needs an F1 account. Scheduled workflows are disabled after 60 days without commits, so re-enable this one from the Actions tab after the winter break.
+
+Check what a tick would do without running anything:
+```bash
+python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
+```
+
+`scripts/check_feature_skew.py 2026 18 austin` builds the features of a past race through both the training and the inference path and lists every feature that differs. Run it after changing feature code.
 
 ## Project structure
 

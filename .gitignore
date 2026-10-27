@@ -24,12 +24,12 @@ ENV/
 .ipynb_checkpoints/
 *.ipynb
 
-# Data — raw and processed (large files, not for version control)
-data/raw/
-data/processed/
+# Data. Raw/processed parquets, predictions and results ARE committed (~1 MB):
+# the GitHub Actions race-weekend job (scripts/ci_tick.py) needs them as state.
+# The FastF1 cache (~1 GB) is not; CI keeps it in actions/cache.
 data/cache/
-data/predictions/
-data/results/
+data/raw/_*
+data/results/ui_task_history.jsonl
 data/*.parquet
 data/*.csv
 data/*.json
@@ -47,6 +47,10 @@ models/*.pt
 models/*.onnx
 models/*.parquet
 models/*.json
+# ...except the active model, which CI loads for inference and retrains
+!models/xgb_race.pkl
+!models/active_model.json
+!models/holdout_metrics.json
 
 # FastF1 cache
 cache/
