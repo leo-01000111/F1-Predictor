@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T15:16:04.298292+00:00",
+  "generated_at": "2026-10-27T18:53:00.415228+00:00",
   "model_family": "xgb_v2",
   "model_artifact": "xgb_race.pkl",
   "calibrator_artifact": null,
@@ -24,9 +24,9 @@
     2025,
     2026
   ],
-  "winner_accuracy_holdout": 0.35714285714285715,
+  "winner_accuracy_holdout": 0.4523809523809524,
   "source": "quick_train.py",
-  "feature_count": 40,
+  "feature_count": 34,
   "feature_cols": [
     "grid_position",
     "quali_gap_relative",
@@ -36,7 +36,6 @@
     "driver_form_5",
     "driver_form_10",
     "driver_form_ewm",
-    "driver_start_delta_avg",
     "circuit_avg_finish",
     "circuit_podiums",
     "circuit_appearances",
@@ -53,11 +52,6 @@
     "windspeed_ms_mean",
     "humidity_pct_mean",
     "is_wet_race",
-    "fp_best_gap_s",
-    "fp2_best_gap_s",
-    "fp_long_run_delta",
-    "start_compound_code",
-    "compound_aggression_delta",
     "round_fraction",
     "driver_elo",
     "driver_wet_avg_finish",

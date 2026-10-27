@@ -1,9 +1,9 @@
 {
-  "winner_accuracy": 0.35714285714285715,
+  "winner_accuracy": 0.4523809523809524,
   "podium_accuracy": 0.6349206349206349,
-  "brier_p1": 0.03808087782857143,
-  "mean_spearman_r": 0.6568977733247103,
-  "mean_mae_position": 3.3884385341156666,
+  "brier_p1": 0.030774456708571422,
+  "mean_spearman_r": 0.6635603690196695,
+  "mean_mae_position": 3.385945470554732,
   "n_holdout_races": 42,
   "holdout_years": [
     2025.0,
