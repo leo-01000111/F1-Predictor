@@ -33,7 +33,6 @@ def render(*, year: int, round_num: int, shell: dict | None = None) -> None:
               <div class='f1-muted'>{team}</div>
               <div style='margin-top:0.35rem;'>Grid: <b>{int(row.get('grid_position', 0) or 0)}</b></div>
               <div>Gap to Pole: <b>{float(row.get('quali_gap_to_pole_s', 0.0) or 0.0):.3f}s</b></div>
-              <div>FP Best Gap: <b>{float(row.get('fp_best_gap_s', 0.0) or 0.0):.3f}s</b></div>
               <div>P(Win): <b>{float(row.get('p_win', 0.0) or 0.0):.1%}</b>  |  P(Podium): <b>{float(row.get('p_podium', 0.0) or 0.0):.1%}</b></div>
             </div>
             """

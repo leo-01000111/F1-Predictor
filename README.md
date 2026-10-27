@@ -18,7 +18,7 @@ There is no `.env.example`. Every variable has a default, so nothing is required
 
 ### 3. Collect historical data
 ```bash
-# Race and qualifying results, plus FP1/FP2/FP3 (FastF1)
+# Race and qualifying results (FastF1, via its Ergast/Jolpica fallback)
 python -m src.data_collection.f1_historical --start 2014 --end 2024
 
 # Historical weather (Open-Meteo) for the races in data/raw/race_results.parquet
@@ -26,13 +26,12 @@ python -m src.data_collection.weather
 ```
 <!-- TODO: add measured run times for data collection (depends on FastF1 cache state and rate limits) -->
 
-`f1_historical` also accepts `--no-fp` (skip practice sessions), `--merge` (only collect years not already saved) and `--sleep` (seconds between requests).
+`f1_historical` also accepts `--merge` (only collect years not already saved) and `--sleep` (seconds between requests).
 
-Three feature groups come from separate collectors. Without them the matching features are filled with neutral values (see `src/features/build_features.py`):
+Lap-level data (practice pace, lap-1 positions, start tyres) is not used: F1's livetiming archive, which FastF1 reads it from, now requires a paid F1 TV subscription.
+
+Two feature groups come from separate collectors. Without them the matching features are filled with neutral values (see `src/features/build_features.py`):
 ```bash
-# Lap-1 position and start compound (FastF1 lap data exists from 2018)
-python scripts/backfill_lap_extras.py --start 2018 --end 2025 --merge
-
 # Pit stop times and sprint results
 python scripts/backfill_pit_sprint.py --pit --start 2014 --end 2025 --merge
 python scripts/backfill_pit_sprint.py --sprint --start 2021 --end 2025 --merge
@@ -58,13 +57,12 @@ python scripts/quick_train.py --use-tuned-params
 ```bash
 python scripts/race_weekend_inference.py --year 2026 --round 5
 
-# Pass start tyres read from the grid walk (overrides OpenF1; default is Medium)
-python scripts/race_weekend_inference.py --year 2026 --round 5 --compounds VER:SOFT NOR:MEDIUM RUS:HARD
-
-# Print the fetched qualifying, practice and weather data without running the model
+# Print the fetched qualifying and weather data without running the model
 python scripts/race_weekend_inference.py --year 2024 --round 10 --dry-run
 ```
-The script pulls qualifying and practice data from OpenF1, completed in-season results from FastF1, and a race-day forecast from Open-Meteo. It writes `data/predictions/<year>_R<round>.json`. Valid compounds are SOFT, MEDIUM, HARD, INTERMEDIATE and WET.
+The script pulls qualifying from OpenF1, completed in-season results from FastF1, and a race-day forecast from Open-Meteo. It writes `data/predictions/<year>_R<round>.json`.
+
+For a round that was missed live, `python scripts/predict_past_race.py --year 2026 --round 18` predicts it from data available before the race (history, qualifying, sprint), with the measured race-day weather in place of the forecast.
 
 ### 6. After the race
 ```bash
@@ -93,7 +91,7 @@ The dashboard is a Streamlit app with four tabs: Race Desk, SHAP Analysis, Histo
 - 4 hours after the race, once the result is published, it collects the season's race, qualifying, weather, pit stop and sprint data, records the result against the prediction, and retrains (`quick_train.py`).
 - Every tick, it writes `site/f1-predictions.json` (`scripts/export_site_json.py`). The website copies that file for the live predictions on [leongorecki.eu/projects/f1predictor.html](https://www.leongorecki.eu/projects/f1predictor.html).
 
-The workflow commits the updated data, model and JSON. CI installs `requirements-ci.txt`, whose versions are pinned to the ones that trained the committed pickle. Lap-1 extras are not collected in CI, because FastF1 lap data now needs an F1 account. Scheduled workflows are disabled after 60 days without commits, so re-enable this one from the Actions tab after the winter break.
+The workflow commits the updated data, model and JSON. CI installs `requirements-ci.txt`, whose versions are pinned to the ones that trained the committed pickle. Scheduled workflows are disabled after 60 days without commits. Over the off-season, `scripts/keepalive.py` (run weekly by a Windows scheduled task named "F1 keepalive") commits a timestamp to `.github/keepalive.txt` in this repo and the website repo whenever the last commit is more than 45 days old.
 
 Check what a tick would do without running anything:
 ```bash
@@ -126,12 +124,13 @@ python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
 │   ├── update_race_result.py
 │   ├── post_race_retrain.py
 │   ├── season_accuracy.py
-│   ├── backfill_lap_extras.py
+│   ├── predict_past_race.py
+│   ├── keepalive.py
 │   ├── backfill_pit_sprint.py
 │   └── pipeline_after_ratelimit.py
 ├── src/
 │   ├── data_collection/
-│   │   ├── f1_historical.py     # FastF1 race, quali, practice, lap extras, pit stops, sprints
+│   │   ├── f1_historical.py     # FastF1 race, quali, sprints; Jolpica pit stops
 │   │   ├── f1_live.py           # OpenF1 live quali and practice data
 │   │   ├── weather.py           # Open-Meteo archive and forecast
 │   │   └── odds.py              # The Odds API race winner odds
@@ -140,7 +139,6 @@ python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
 │   │   ├── driver_features.py
 │   │   ├── team_features.py
 │   │   ├── circuit_features.py
-│   │   ├── practice_features.py
 │   │   └── weather_features.py
 │   ├── models/
 │   │   ├── xgb_model.py         # XGBRacePredictor (regressor)
@@ -183,20 +181,19 @@ features (35 columns) -> XGBoost regressor -> predicted finish position per driv
 
 ## Features
 
-The 35 model inputs are listed in `FEATURE_COLS` in `src/features/build_features.py`. All rolling and history features use only races before the one being predicted. Missing values are filled with the column median.
+The 34 model inputs are listed in `FEATURE_COLS` in `src/features/build_features.py`. All rolling and history features use only races before the one being predicted. Missing values are filled with the column median.
 
 | Group | Features |
 |---|---|
 | Qualifying | `grid_position`, `quali_gap_relative`, `grid_position_rel`, `teammate_quali_delta`, `grid_penalty_places` |
 | Car pace | `car_pace_delta_pct` |
 | Driver form | `driver_form_5`, `driver_form_10`, `driver_form_ewm`, `driver_elo`, `driver_wet_avg_finish`, `driver_experience_norm` |
-| Start | `driver_start_delta_avg`, `start_compound_code`, `compound_aggression_delta`, `circuit_grid_conversion` |
+| Start | `circuit_grid_conversion` |
 | Circuit | `circuit_avg_finish`, `circuit_podiums`, `circuit_appearances`, `is_street_circuit`, `circuit_safety_car_rate` |
 | Reliability | `dnf_rate`, `team_reliability_rate` |
 | Championship | `championship_position`, `cum_points_before`, `championship_pressure`, `round_fraction` |
 | Constructor | `constructor_standing`, `team_cum_points`, `team_form_5`, `team_pit_delta_s` |
 | Weather | `temp_c_mean`, `precip_mm_total`, `windspeed_ms_mean`, `humidity_pct_mean`, `is_wet_race` |
-| Free practice | `fp_best_gap_s`, `fp2_best_gap_s`, `fp_long_run_delta` |
 | Sprint | `sprint_position_rel` |
 
 ## Evaluation

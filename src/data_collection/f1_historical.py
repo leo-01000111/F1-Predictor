@@ -1,10 +1,13 @@
 """
 FastF1-based historical data collector.
-Pulls Race, Qualifying, and Free Practice sessions for all rounds.
+Pulls Race and Qualifying results for all rounds.
 Outputs:
   - data/raw/race_results.parquet
   - data/raw/quali_results.parquet
-  - data/raw/practice_results.parquet
+
+Lap-level data (practice pace, lap-1 positions, start tyres) is not collected:
+F1's livetiming archive now requires a paid F1 TV subscription. Session results
+still load through FastF1's Ergast/Jolpica fallback.
 """
 from __future__ import annotations
 
@@ -27,9 +30,6 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 fastf1.Cache.enable_cache(str(CACHE_DIR))
 
-LONG_RUN_MIN_LAPS = 5
-
-
 _RATE_LIMIT_PHRASES = ("500 calls", "rate limit", "429", "too many requests", "ratelimit")
 
 
@@ -42,7 +42,6 @@ def _load_session_safe(
     year: int,
     round_num: int,
     session_type: str,
-    load_laps: bool = False,
     max_retries: int = 3,
 ) -> Optional[fastf1.core.Session]:
     """Load a FastF1 session, retrying with exponential backoff on rate-limit errors."""
@@ -50,7 +49,7 @@ def _load_session_safe(
     for attempt in range(max_retries):
         try:
             session = fastf1.get_session(year, round_num, session_type)
-            session.load(laps=load_laps, telemetry=False, weather=False, messages=False)
+            session.load(laps=False, telemetry=False, weather=False, messages=False)
             return session
         except Exception as exc:
             if _is_rate_limit_error(exc):
@@ -142,191 +141,6 @@ def _extract_quali_result(session: fastf1.core.Session, year: int) -> pd.DataFra
             "quali_gap_to_pole_s": gap_to_pole,
         })
     return pd.DataFrame(rows)
-
-
-def _extract_practice_result(session: fastf1.core.Session, year: int, fp_num: int) -> pd.DataFrame:
-    """
-    Extract per-driver FP pace metrics.
-    fp{N}_best_gap_s     : best lap gap to session fastest
-    fp{N}_long_run_delta : avg long-run pace vs session median (race sim)
-    fp{N}_laps           : total laps completed
-    """
-    try:
-        laps = session.laps
-    except Exception:
-        return pd.DataFrame()
-
-    if laps is None or laps.empty:
-        return pd.DataFrame()
-
-    clean_laps = laps.pick_quicklaps(threshold=1.07)
-
-    session_best = None
-    session_median = None
-    if not clean_laps.empty and "LapTime" in clean_laps.columns:
-        times = clean_laps["LapTime"].dropna()
-        if not times.empty:
-            session_best = times.min().total_seconds()
-            session_median = times.median().total_seconds()
-
-    rows = []
-    for driver in laps["Driver"].unique():
-        driver_laps = laps[laps["Driver"] == driver]
-        driver_clean = clean_laps[clean_laps["Driver"] == driver]
-        total_laps = len(driver_laps)
-
-        best_gap = None
-        if not driver_clean.empty and session_best is not None:
-            lap_times = driver_clean["LapTime"].dropna()
-            if not lap_times.empty:
-                best_gap = lap_times.min().total_seconds() - session_best
-
-        long_run_pace = None
-        if not driver_laps.empty and "Stint" in driver_laps.columns and session_median is not None:
-            stint_sizes = driver_laps.groupby("Stint").size()
-            long_stints = stint_sizes[stint_sizes >= LONG_RUN_MIN_LAPS].index
-            if len(long_stints) > 0:
-                long_run_laps = driver_laps[driver_laps["Stint"].isin(long_stints)]
-                long_run_times = long_run_laps["LapTime"].dropna()
-                if not long_run_times.empty:
-                    avg_s = long_run_times.apply(lambda t: t.total_seconds()).mean()
-                    long_run_pace = avg_s - session_median
-
-        rows.append({
-            "year": year,
-            "round": session.event.RoundNumber,
-            "circuit_key": session.event.EventName.lower().replace(" ", "_").replace("grand_prix", "gp"),
-            "driver": driver,
-            f"fp{fp_num}_best_gap_s": best_gap,
-            f"fp{fp_num}_long_run_delta": long_run_pace,
-            f"fp{fp_num}_laps": total_laps,
-        })
-    return pd.DataFrame(rows)
-
-
-def _extract_lap_extras(session: fastf1.core.Session, year: int) -> pd.DataFrame:
-    """Extract lap-1 position and start compound (tire) for each driver.
-
-    lap1_position  : position at the end of lap 1 (start performance signal)
-    start_compound : tire compound used at race start (strategy signal)
-
-    Requires the session to be loaded with laps=True.
-    """
-    try:
-        laps = session.laps
-    except Exception:
-        return pd.DataFrame()
-
-    if laps is None or laps.empty:
-        return pd.DataFrame()
-
-    lap1 = laps[pd.to_numeric(laps["LapNumber"], errors="coerce") == 1]
-    if lap1.empty:
-        return pd.DataFrame()
-
-    circuit_key = (
-        session.event.EventName.lower()
-        .replace(" ", "_")
-        .replace("grand_prix", "gp")
-    )
-
-    rows = []
-    for _, row in lap1.iterrows():
-        driver = str(row.get("Driver", "")).strip()
-        if not driver:
-            continue
-        pos = row.get("Position", None)
-        compound = row.get("Compound", None)
-        rows.append({
-            "year": year,
-            "round": int(session.event.RoundNumber),
-            "circuit_key": circuit_key,
-            "driver": driver,
-            "lap1_position": int(float(pos)) if pd.notna(pos) else None,
-            "start_compound": str(compound).upper() if compound and pd.notna(compound) and str(compound) != "nan" else None,
-        })
-
-    return pd.DataFrame(rows)
-
-
-def collect_lap_extras(
-    start_year: int = 2014,
-    end_year: int = 2024,
-    sleep_between_sessions: float = 2.0,
-    merge_existing: bool = False,
-) -> pd.DataFrame:
-    """Collect lap-1 position and start compound for all historical races.
-
-    Loads race sessions with laps=True (heavier than R+Q-only; ~2-4s per round).
-    Saves incrementally to data/raw/lap_extras.parquet after each year.
-
-    Args:
-        merge_existing: if True, skip rounds already in the parquet and only
-                        fetch the newly requested years.
-    """
-    lap_extras_path = RAW_DIR / "lap_extras.parquet"
-    existing = pd.DataFrame()
-
-    if merge_existing and lap_extras_path.exists():
-        existing = pd.read_parquet(lap_extras_path)
-        logger.info(
-            f"Loaded existing lap_extras: {len(existing)} rows, "
-            f"years {sorted(existing['year'].unique().tolist())}"
-        )
-
-    existing_keys: set[tuple[int, int]] = set()
-    if not existing.empty:
-        existing_keys = set(zip(existing["year"].tolist(), existing["round"].tolist()))
-
-    all_rows: list[pd.DataFrame] = []
-
-    for year in range(start_year, end_year + 1):
-        try:
-            schedule = fastf1.get_event_schedule(year, include_testing=False)
-        except Exception as exc:
-            logger.error(f"Could not fetch schedule for {year}: {exc}")
-            continue
-
-        rounds = schedule["RoundNumber"].dropna().astype(int).tolist()
-        logger.info(f"{year}: collecting lap extras for {len(rounds)} rounds")
-
-        for rnd in rounds:
-            if (year, rnd) in existing_keys:
-                logger.debug(f"  {year} R{rnd}: already in lap_extras, skipping")
-                continue
-
-            race_session = _load_session_safe(year, rnd, "R", load_laps=True)
-            if race_session is not None:
-                df = _extract_lap_extras(race_session, year)
-                if not df.empty:
-                    all_rows.append(df)
-                    logger.debug(f"  {year} R{rnd}: {len(df)} drivers collected")
-                else:
-                    logger.warning(f"  {year} R{rnd}: no lap-1 data found")
-            time.sleep(sleep_between_sessions)
-
-        # Save after each year so progress is never lost
-        if all_rows:
-            new_df = pd.concat(all_rows, ignore_index=True)
-            combined = pd.concat([existing, new_df], ignore_index=True).drop_duplicates(
-                subset=["year", "round", "driver"], keep="last"
-            )
-            combined.to_parquet(lap_extras_path, index=False)
-            logger.info(f"  Saved lap_extras progress after {year} ({len(combined)} total rows)")
-
-    if not all_rows:
-        if not existing.empty:
-            return existing
-        return pd.DataFrame()
-
-    new_df = pd.concat(all_rows, ignore_index=True)
-    combined = pd.concat([existing, new_df], ignore_index=True).drop_duplicates(
-        subset=["year", "round", "driver"], keep="last"
-    )
-    combined = combined.sort_values(["year", "round", "driver"]).reset_index(drop=True)
-    combined.to_parquet(lap_extras_path, index=False)
-    logger.info(f"Lap extras collection complete: {len(combined)} rows saved to {lap_extras_path}")
-    return combined
 
 
 def _parse_pit_duration(dur_str: str) -> float | None:
@@ -493,50 +307,12 @@ def load_pit_stops() -> pd.DataFrame:
 
 
 def _extract_sprint_result(session: fastf1.core.Session, year: int) -> pd.DataFrame:
-    """
-    Extract sprint race finishing positions + lap-based pace features.
-
-    Lap features (only present when session was loaded with load_laps=True):
-      sprint_best_lap_gap_s : driver best lap - session best lap (gap to fastest)
-      sprint_pace_gap_s     : driver median mid-race pace - session median mid-race pace
-                              (mid-race = laps 2..n-2, avoids standing start and push laps)
-    Both are clipped to plausible ranges. NaN when laps not loaded.
-    """
+    """Extract sprint race finishing positions."""
     results = session.results
     if results is None or results.empty:
         return pd.DataFrame()
 
     n_starters = len(results)
-
-    # --- Lap-based pace extraction (optional) ---
-    sprint_best_gap: dict[str, float] = {}
-    sprint_pace_gap: dict[str, float] = {}
-    try:
-        laps = session.laps
-        if laps is not None and not laps.empty and "LapTime" in laps.columns:
-            lap_s = laps["LapTime"].dt.total_seconds()
-            valid = laps.copy()
-            valid["lap_s"] = lap_s
-            valid = valid[valid["lap_s"].between(40.0, 200.0)]
-
-            if not valid.empty:
-                session_best = valid["lap_s"].min()
-                max_lap_num = valid["LapNumber"].max()
-                mid = valid[
-                    (valid["LapNumber"] > 1) & (valid["LapNumber"] < max_lap_num - 1)
-                ]
-                session_mid_median = mid["lap_s"].median() if not mid.empty else None
-
-                for drv_abbr, drv_laps in valid.groupby("Driver"):
-                    best_gap = float(np.clip(drv_laps["lap_s"].min() - session_best, 0.0, 10.0))
-                    sprint_best_gap[str(drv_abbr)] = best_gap
-
-                    drv_mid = mid[mid["Driver"] == drv_abbr]["lap_s"]
-                    if not drv_mid.empty and session_mid_median is not None:
-                        pace = float(np.clip(drv_mid.median() - session_mid_median, -5.0, 10.0))
-                        sprint_pace_gap[str(drv_abbr)] = pace
-    except Exception as exc:
-        logger.debug(f"Sprint lap extraction skipped: {exc}")
 
     rows = []
     for _, row in results.iterrows():
@@ -549,8 +325,6 @@ def _extract_sprint_result(session: fastf1.core.Session, year: int) -> pd.DataFr
             "driver": abbr,
             "sprint_position": int(float(position)) if pd.notna(position) else None,
             "n_sprint_starters": n_starters,
-            "sprint_best_lap_gap_s": sprint_best_gap.get(abbr, np.nan),
-            "sprint_pace_gap_s": sprint_pace_gap.get(abbr, np.nan),
         })
     return pd.DataFrame(rows)
 
@@ -560,17 +334,12 @@ def collect_sprint_results(
     end_year: int = 2025,
     sleep_between_sessions: float = 1.5,
     merge_existing: bool = False,
-    include_laps: bool = True,
 ) -> pd.DataFrame:
     """
     Collect sprint race results via FastF1 (sprints started in 2021).
 
     Saves to data/raw/sprint_results.parquet with columns:
-        year, round, circuit_key, driver, sprint_position, n_sprint_starters,
-        sprint_best_lap_gap_s, sprint_pace_gap_s   (when include_laps=True)
-
-    include_laps=True (default): also extracts lap-based pace features used to
-        substitute fp2_best_gap_s / fp_long_run_delta on sprint weekends.
+        year, round, circuit_key, driver, sprint_position, n_sprint_starters
     """
     sprint_path = RAW_DIR / "sprint_results.parquet"
     existing = pd.DataFrame()
@@ -578,19 +347,6 @@ def collect_sprint_results(
     if merge_existing and sprint_path.exists():
         existing = pd.read_parquet(sprint_path)
         logger.info(f"Loaded existing sprint data: {len(existing)} rows")
-
-    # If existing data is missing the pace columns, re-fetch everything so we
-    # don't silently leave sprint weekends with no lap-pace data.
-    has_pace_cols = (
-        "sprint_best_lap_gap_s" in existing.columns
-        and "sprint_pace_gap_s" in existing.columns
-    )
-    if merge_existing and include_laps and not has_pace_cols and not existing.empty:
-        logger.info(
-            "Existing sprint_results.parquet is missing lap-pace columns "
-            "(sprint_best_lap_gap_s / sprint_pace_gap_s). Re-fetching all sprint rounds."
-        )
-        existing = pd.DataFrame()
 
     existing_keys: set[tuple[int, int]] = set()
     if not existing.empty:
@@ -623,7 +379,7 @@ def collect_sprint_results(
             # Try both FastF1 sprint session identifiers
             session = None
             for stype in ["Sprint", "S"]:
-                session = _load_session_safe(year, rnd, stype, load_laps=include_laps)
+                session = _load_session_safe(year, rnd, stype)
                 if session is not None:
                     break
 
@@ -671,33 +427,14 @@ def load_sprint_results() -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def load_lap_extras() -> pd.DataFrame:
-    """Load the lap_extras parquet (lap1_position + start_compound per driver per race)."""
-    path = RAW_DIR / "lap_extras.parquet"
-    if not path.exists():
-        raise FileNotFoundError(
-            f"No lap_extras data found. Run the backfill first:\n"
-            f"  python scripts/backfill_lap_extras.py --start 2014 --end 2025 --merge"
-        )
-    return pd.read_parquet(path)
-
-
 def collect_historical(
     start_year: int = 2014,
     end_year: int = 2024,
     sleep_between_sessions: float = 1.0,
-    include_fp: bool = True,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Pull Race, Qualifying, and (optionally) FP1/FP2/FP3 for all rounds.
-    Returns (race_df, quali_df, practice_df).
-
-    Set include_fp=False for a fast R+Q-only collection (~15 min vs ~90 min).
-    FP features will be median-imputed during feature engineering if absent.
-    """
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Pull Race and Qualifying results for all rounds. Returns (race_df, quali_df)."""
     all_race_rows: list[pd.DataFrame] = []
     all_quali_rows: list[pd.DataFrame] = []
-    all_practice_rows: list[pd.DataFrame] = []
 
     for year in range(start_year, end_year + 1):
         try:
@@ -707,7 +444,7 @@ def collect_historical(
             continue
 
         rounds = schedule["RoundNumber"].dropna().astype(int).tolist()
-        logger.info(f"{year}: {len(rounds)} rounds to collect (fp={'yes' if include_fp else 'no'})")
+        logger.info(f"{year}: {len(rounds)} rounds to collect")
 
         for rnd in rounds:
             race_session = _load_session_safe(year, rnd, "R")
@@ -724,50 +461,28 @@ def collect_historical(
                     all_quali_rows.append(df)
             time.sleep(sleep_between_sessions)
 
-            if include_fp:
-                fp_dfs: list[pd.DataFrame] = []
-                for fp_num, fp_key in [(1, "FP1"), (2, "FP2"), (3, "FP3")]:
-                    fp_session = _load_session_safe(year, rnd, fp_key, load_laps=True)
-                    if fp_session is not None:
-                        df = _extract_practice_result(fp_session, year, fp_num)
-                        if not df.empty:
-                            fp_dfs.append(df)
-                    time.sleep(sleep_between_sessions)
-
-                if fp_dfs:
-                    fp_merged = fp_dfs[0]
-                    for fp_df in fp_dfs[1:]:
-                        merge_keys = ["year", "round", "circuit_key", "driver"]
-                        fp_merged = fp_merged.merge(fp_df, on=merge_keys, how="outer")
-                    all_practice_rows.append(fp_merged)
-                    logger.debug(f"  {year} R{rnd} Practice: {len(fp_merged)} drivers")
-
         # Save after each year so progress is never lost on interrupt
-        _save_incremental(all_race_rows, all_quali_rows, all_practice_rows)
+        _save_incremental(all_race_rows, all_quali_rows)
         logger.info(f"  Saved progress after {year}")
 
     race_df = pd.concat(all_race_rows, ignore_index=True) if all_race_rows else pd.DataFrame()
     quali_df = pd.concat(all_quali_rows, ignore_index=True) if all_quali_rows else pd.DataFrame()
-    practice_df = pd.concat(all_practice_rows, ignore_index=True) if all_practice_rows else pd.DataFrame()
 
-    return race_df, quali_df, practice_df
+    return race_df, quali_df
 
 
 def _save_incremental(
     race_rows: list,
     quali_rows: list,
-    practice_rows: list,
 ) -> None:
     """Save current accumulated rows — called after each year to preserve progress."""
     if race_rows:
         pd.concat(race_rows, ignore_index=True).to_parquet(RAW_DIR / "race_results.parquet", index=False)
     if quali_rows:
         pd.concat(quali_rows, ignore_index=True).to_parquet(RAW_DIR / "quali_results.parquet", index=False)
-    if practice_rows:
-        pd.concat(practice_rows, ignore_index=True).to_parquet(RAW_DIR / "practice_results.parquet", index=False)
 
 
-def save_raw(race_df: pd.DataFrame, quali_df: pd.DataFrame, practice_df: Optional[pd.DataFrame] = None) -> None:
+def save_raw(race_df: pd.DataFrame, quali_df: pd.DataFrame) -> None:
     if not race_df.empty:
         path = RAW_DIR / "race_results.parquet"
         race_df.to_parquet(path, index=False)
@@ -776,10 +491,6 @@ def save_raw(race_df: pd.DataFrame, quali_df: pd.DataFrame, practice_df: Optiona
         path = RAW_DIR / "quali_results.parquet"
         quali_df.to_parquet(path, index=False)
         logger.info(f"Saved {len(quali_df)} quali rows -> {path}")
-    if practice_df is not None and not practice_df.empty:
-        path = RAW_DIR / "practice_results.parquet"
-        practice_df.to_parquet(path, index=False)
-        logger.info(f"Saved {len(practice_df)} practice rows -> {path}")
 
 
 def load_race_results() -> pd.DataFrame:
@@ -796,20 +507,12 @@ def load_quali_results() -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def load_practice_results() -> pd.DataFrame:
-    path = RAW_DIR / "practice_results.parquet"
-    if not path.exists():
-        raise FileNotFoundError(f"Run collect_historical() first. Expected: {path}")
-    return pd.read_parquet(path)
-
-
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Collect F1 historical data via FastF1")
     parser.add_argument("--start", type=int, default=2014)
     parser.add_argument("--end", type=int, default=2024)
     parser.add_argument("--sleep", type=float, default=1.0)
-    parser.add_argument("--no-fp", action="store_true", help="Skip FP sessions (R+Q only, ~4x faster)")
     parser.add_argument(
         "--merge",
         action="store_true",
@@ -818,21 +521,7 @@ if __name__ == "__main__":
             "then merge and save. Avoids re-downloading cached data."
         ),
     )
-    parser.add_argument(
-        "--lap-extras",
-        action="store_true",
-        help=(
-            "Collect lap-1 position and start compound for each race. "
-            "Requires loading race laps (~2s per round). "
-            "Outputs data/raw/lap_extras.parquet."
-        ),
-    )
     args = parser.parse_args()
-
-    if args.lap_extras:
-        collect_lap_extras(args.start, args.end, args.sleep, merge_existing=args.merge)
-        import sys as _sys
-        _sys.exit(0)
 
     if args.merge:
         # --merge: load existing parquet, collect only args.start..args.end years,
@@ -841,11 +530,9 @@ if __name__ == "__main__":
         # (e.g. 2020 with only 6/17 rounds) are properly completed.
         existing_race = pd.DataFrame()
         existing_quali = pd.DataFrame()
-        existing_practice = pd.DataFrame()
 
         race_path = RAW_DIR / "race_results.parquet"
         quali_path = RAW_DIR / "quali_results.parquet"
-        practice_path = RAW_DIR / "practice_results.parquet"
 
         if race_path.exists():
             existing_race = pd.read_parquet(race_path)
@@ -853,9 +540,6 @@ if __name__ == "__main__":
         if quali_path.exists():
             existing_quali = pd.read_parquet(quali_path)
             logger.info(f"Loaded existing quali data: {len(existing_quali)} rows")
-        if practice_path.exists():
-            existing_practice = pd.read_parquet(practice_path)
-            logger.info(f"Loaded existing practice data: {len(existing_practice)} rows")
 
         # Back up existing data — incremental saves inside collect_historical
         # overwrite the parquet with only the new years, so we need the backup
@@ -868,10 +552,8 @@ if __name__ == "__main__":
         if not existing_quali.empty:
             existing_quali.to_parquet(backup_quali_path, index=False)
 
-        logger.info(f"Collecting years {args.start}-{args.end} (fp={'no' if args.no_fp else 'yes'})")
-        new_race, new_quali, new_practice = collect_historical(
-            args.start, args.end, args.sleep, include_fp=not args.no_fp
-        )
+        logger.info(f"Collecting years {args.start}-{args.end}")
+        new_race, new_quali = collect_historical(args.start, args.end, args.sleep)
 
         # Merge existing (pre-start years) + new, deduplicate on year+round+driver
         def _merge_dfs(existing: pd.DataFrame, new: pd.DataFrame, key_cols: list) -> pd.DataFrame:
@@ -888,22 +570,16 @@ if __name__ == "__main__":
 
         race_df = _merge_dfs(existing_race, new_race, ["year", "round", "driver"])
         quali_df = _merge_dfs(existing_quali, new_quali, ["year", "round", "driver"])
-        if not existing_practice.empty or not new_practice.empty:
-            practice_df = _merge_dfs(existing_practice, new_practice, ["year", "round", "driver"])
-        else:
-            practice_df = pd.DataFrame()
 
-        save_raw(race_df, quali_df, practice_df if not practice_df.empty else None)
+        save_raw(race_df, quali_df)
         logger.info(f"Merged dataset: {len(race_df)} race rows, {len(quali_df)} quali rows, years {sorted(race_df['year'].unique().tolist())}")
 
         # Clean up backup files
         backup_race_path.unlink(missing_ok=True)
         backup_quali_path.unlink(missing_ok=True)
     else:
-        logger.info(f"Collecting F1 data {args.start}-{args.end} (fp={'no' if args.no_fp else 'yes'})")
-        race_df, quali_df, practice_df = collect_historical(
-            args.start, args.end, args.sleep, include_fp=not args.no_fp
-        )
-        save_raw(race_df, quali_df, practice_df)
+        logger.info(f"Collecting F1 data {args.start}-{args.end}")
+        race_df, quali_df = collect_historical(args.start, args.end, args.sleep)
+        save_raw(race_df, quali_df)
 
     logger.info("Done.")

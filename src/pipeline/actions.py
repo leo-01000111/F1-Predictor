@@ -53,7 +53,6 @@ class PipelineActionRunner:
         from src.data_collection.f1_historical import load_race_results
         from src.data_collection.f1_live import (
             get_completed_season_race_results,
-            get_live_practice_dataframe,
             get_live_quali_dataframe,
         )
         from src.data_collection.weather import get_race_day_forecast
@@ -86,14 +85,6 @@ class PipelineActionRunner:
         if quali_df.empty:
             raise RuntimeError("No qualifying data returned. Is qualifying finished for this round?")
         context.log(f"Qualifying rows: {len(quali_df)} drivers.")
-        context.check_cancelled()
-
-        context.progress(45, "Fetching FP1/FP2/FP3 data...")
-        practice_df = get_live_practice_dataframe(year, round_num)
-        if practice_df.empty:
-            context.log("No practice data found. Proceeding with median-imputed FP features.")
-        else:
-            context.log(f"Practice rows: {len(practice_df)} ({practice_df['driver'].nunique()} drivers).")
         context.check_cancelled()
 
         context.progress(62, "Fetching race-day weather...")
@@ -141,7 +132,6 @@ class PipelineActionRunner:
             quali_df=quali_df,
             race_df_history=race_df_history,
             weather_dict=weather_dict,
-            practice_df=practice_df,
             pit_df=pit_df,
             sprint_df=sprint_df,
         )
@@ -319,8 +309,7 @@ class PipelineActionRunner:
         """
         from src.data_collection.f1_live import get_completed_season_race_results
         from src.data_collection.f1_historical import (
-            load_quali_results, load_practice_results,
-            load_lap_extras, load_pit_stops, load_sprint_results,
+            load_quali_results, load_pit_stops, load_sprint_results,
         )
         from src.data_collection.weather import load_weather_history
         from src.features.build_features import build_feature_matrix, save_feature_matrix
@@ -366,22 +355,12 @@ class PipelineActionRunner:
             raise RuntimeError("quali_results.parquet not found. Run f1_historical first.")
 
         weather_df = None
-        practice_df = None
-        lap_extras_df = None
         pit_df = None
         sprint_df = None
         try:
             weather_df = load_weather_history()
         except FileNotFoundError:
             context.log("No weather data — proceeding without it.")
-        try:
-            practice_df = load_practice_results()
-        except FileNotFoundError:
-            context.log("No practice data — FP features will be zero.")
-        try:
-            lap_extras_df = load_lap_extras()
-        except FileNotFoundError:
-            context.log("No lap_extras.parquet — start delta/compound will be zero.")
         try:
             pit_df = load_pit_stops()
         except FileNotFoundError:
@@ -395,8 +374,6 @@ class PipelineActionRunner:
             race_df=merged,
             quali_df=quali_df,
             weather_df=weather_df,
-            practice_df=practice_df,
-            lap_extras_df=lap_extras_df,
             pit_df=pit_df,
             sprint_df=sprint_df,
         )

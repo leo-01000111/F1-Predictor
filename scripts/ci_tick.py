@@ -94,7 +94,7 @@ def ingest(year: int, done_races: list[dict], dry_run: bool) -> bool:
     print(f"ingest: rounds {[e['round'] for e in missing]} missing, collecting {year}")
 
     y = str(year)
-    ok = _run(["-m", "src.data_collection.f1_historical", "--start", y, "--end", y, "--merge", "--no-fp"], dry_run)
+    ok = _run(["-m", "src.data_collection.f1_historical", "--start", y, "--end", y, "--merge"], dry_run)
     if not ok:
         return False
     after = _ingested_rounds(year) if not dry_run else before | {e["round"] for e in missing}

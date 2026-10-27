@@ -29,7 +29,6 @@ def run_inference(
     quali_df: pd.DataFrame,
     race_df_history: pd.DataFrame,
     weather_dict: dict,
-    practice_df: Optional[pd.DataFrame] = None,
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
 ) -> dict:
@@ -45,14 +44,12 @@ def run_inference(
         add_dnf_rate,
         add_driver_form,
         add_teammate_quali_delta,
-        add_driver_start_delta,
         add_elo_ratings,
         add_championship_pressure,
         add_driver_experience,
     )
     from src.features.circuit_features import add_grid_conversion
     from src.features.circuits import canonical_circuit, canonicalize_circuits
-    from src.features.practice_features import merge_practice_features
     from src.features.team_features import (
         add_constructor_standing,
         add_pit_stop_performance,
@@ -63,11 +60,7 @@ def run_inference(
     from src.features.build_features import (
         STREET_CIRCUITS,
         CIRCUIT_SC_RATE,
-        CIRCUIT_TYPICAL_COMPOUND,
-        COMPOUND_MAP,
         _DEFAULT_SC_RATE,
-        _DEFAULT_COMPOUND,
-        _DEFAULT_TYPICAL_COMPOUND,
     )
     from src.features.weather_features import merge_weather
     from src.models.plackett_luce import PlackettLuceSampler
@@ -108,23 +101,11 @@ def run_inference(
                 "p3": 0,
                 "podium": 0,
                 "quali_gap_to_pole_s": row.get("quali_gap_to_pole_s", None),
-                "start_compound": row.get("start_compound", None),
                 "is_wet_race": is_wet,
             }
         )
 
     upcoming_df = pd.DataFrame(upcoming_rows)
-
-    # Training merges lap extras into race history (build_features step 0); without
-    # lap1_position here driver_start_delta_avg was 0.0 for every driver
-    if "lap1_position" not in race_df_history.columns:
-        try:
-            from src.data_collection.f1_historical import load_lap_extras
-
-            lap = load_lap_extras()[["year", "round", "driver", "lap1_position"]]
-            race_df_history = race_df_history.merge(lap, on=["year", "round", "driver"], how="left")
-        except Exception as exc:
-            logger.warning(f"No lap extras for history ({exc}); driver_start_delta_avg will be 0")
 
     combined = pd.concat([race_df_history, upcoming_df], ignore_index=True)
     combined = canonicalize_circuits(combined).sort_values(["year", "round"])
@@ -133,7 +114,6 @@ def run_inference(
     combined = add_championship_standing(combined)
     combined = add_dnf_rate(combined)
     combined = add_circuit_history(combined)
-    combined = add_driver_start_delta(combined)
     combined = add_elo_ratings(combined)
     combined = add_championship_pressure(combined)
     combined = add_driver_experience(combined)
@@ -203,23 +183,16 @@ def run_inference(
     except Exception:
         feat_df["driver_wet_avg_finish"] = np.nan
 
-    # 3. Practice. The training matrix has no FP data (practice_results.parquet was
-    # never collected): FP columns there are sprint pace on sprint weekends and the
-    # training-wide median otherwise. Live OpenF1 practice is therefore NOT fed to
-    # the model; the same sprint substitution + training medians are used instead.
-    if practice_df is not None and not practice_df.empty:
-        logger.info("Live practice data ignored for model input (not present in training data)")
+    # 3. Training-wide fill values, so imputation matches build_features
     train_fill = load_fill_values()
     if not train_fill:
-        # Matrix built before fill values were saved: its post-imputation median
-        # equals the fill value for columns that were mostly imputed (FP columns)
+        # Matrix built before fill values were saved: fall back to its medians
         logger.warning("feature_fill_values.json missing; rebuild features (quick_train.py)")
         try:
             fm_hist = load_feature_matrix()
             train_fill = {c: float(fm_hist[c].median()) for c in FEATURE_COLS if c in fm_hist.columns}
         except Exception as exc:
             logger.warning(f"Could not load training medians ({exc}); using per-race median")
-    feat_df = merge_practice_features(feat_df, None, sprint_df=sprint_df, fill_values=train_fill)
 
     # 3b. Derived quali and season features
     feat_df["grid_position"] = pd.to_numeric(feat_df.get("grid_position"), errors="coerce")
@@ -266,19 +239,6 @@ def run_inference(
     ck = circuit_id
     feat_df["is_street_circuit"] = float(ck in STREET_CIRCUITS)
     feat_df["circuit_safety_car_rate"] = float(CIRCUIT_SC_RATE.get(ck, _DEFAULT_SC_RATE))
-
-    # 3d. Tire strategy features
-    # start_compound_code: use qualifying info if available, otherwise Medium (1)
-    if "start_compound" in feat_df.columns:
-        feat_df["start_compound_code"] = (
-            feat_df["start_compound"].str.upper().map(COMPOUND_MAP).fillna(_DEFAULT_COMPOUND)
-        )
-    else:
-        feat_df["start_compound_code"] = float(_DEFAULT_COMPOUND)
-        logger.info("start_compound not available; defaulting to Medium (1) for all drivers")
-
-    typical_compound = float(CIRCUIT_TYPICAL_COMPOUND.get(ck, _DEFAULT_TYPICAL_COMPOUND))
-    feat_df["compound_aggression_delta"] = feat_df["start_compound_code"] - typical_compound
 
     # 4. Ensure features and impute
     for col in FEATURE_COLS:
@@ -337,10 +297,6 @@ def run_inference(
                 "team": row["team"],
                 "grid_position": int(row["grid_position"]) if pd.notna(row.get("grid_position")) else None,
                 "quali_gap_to_pole_s": float(row.get("quali_gap_to_pole_s", 0) or 0),
-                "fp_best_gap_s": float(round(float(row.get("fp_best_gap_s", 0) or 0), 4)),
-                "fp2_best_gap_s": float(round(float(row.get("fp2_best_gap_s", 0) or 0), 4)),
-                "fp_long_run_delta": float(round(float(row.get("fp_long_run_delta", 0) or 0), 4)),
-                "fp_total_laps": float(round(float(row.get("fp_total_laps", 0) or 0), 4)),
                 "p_win": float(round(probs["p1"][i], 4)),
                 "p_p2": float(round(probs["p2"][i], 4)),
                 "p_p3": float(round(probs["p3"][i], 4)),

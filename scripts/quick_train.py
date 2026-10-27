@@ -63,9 +63,7 @@ def main() -> None:
     args, _ = parser.parse_known_args()
 
     from src.data_collection.f1_historical import (
-        load_lap_extras,
         load_pit_stops,
-        load_practice_results,
         load_quali_results,
         load_race_results,
         load_sprint_results,
@@ -86,24 +84,10 @@ def main() -> None:
     logger.info(f"Race data: {len(race_df)} rows, years {sorted(race_df['year'].unique())}")
 
     try:
-        practice_df = load_practice_results()
-        logger.info(f"Practice data: {len(practice_df)} rows")
-    except FileNotFoundError:
-        logger.warning("No practice data; FP features will be zero-filled")
-        practice_df = None
-
-    try:
         weather_df = load_weather_history()
     except FileNotFoundError:
         logger.warning("No weather data; weather features will be zero-filled")
         weather_df = None
-
-    try:
-        lap_extras_df = load_lap_extras()
-        logger.info(f"Lap extras: {len(lap_extras_df)} rows")
-    except FileNotFoundError:
-        logger.info("No lap_extras; driver_start_delta_avg/start_compound will be zero-filled")
-        lap_extras_df = None
 
     try:
         pit_df = load_pit_stops()
@@ -123,7 +107,7 @@ def main() -> None:
     # Build feature matrix
     # ------------------------------------------------------------------ #
     logger.info("Building feature matrix...")
-    fm = build_feature_matrix(race_df, quali_df, weather_df, practice_df, lap_extras_df, pit_df, sprint_df)
+    fm = build_feature_matrix(race_df, quali_df, weather_df, pit_df, sprint_df)
     save_feature_matrix(fm)
     logger.info(f"Feature matrix: {len(fm)} rows x {len(FEATURE_COLS)} features")
 

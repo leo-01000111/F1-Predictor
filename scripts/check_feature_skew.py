@@ -22,7 +22,7 @@ from loguru import logger
 logger.remove()
 
 from src.data_collection.f1_historical import (
-    load_race_results, load_quali_results, load_lap_extras, load_pit_stops, load_sprint_results,
+    load_race_results, load_quali_results, load_pit_stops, load_sprint_results,
 )
 from src.data_collection.weather import load_weather_history
 from src.features.build_features import FEATURE_COLS, build_feature_matrix
@@ -30,9 +30,9 @@ import src.models.xgb_model as xm
 from src.inference.predict import run_inference
 
 race, quali = load_race_results(), load_quali_results()
-weather, lap, pit, sprint = load_weather_history(), load_lap_extras(), load_pit_stops(), load_sprint_results()
+weather, pit, sprint = load_weather_history(), load_pit_stops(), load_sprint_results()
 
-fm = build_feature_matrix(race, quali, weather_df=weather, lap_extras_df=lap, pit_df=pit, sprint_df=sprint)
+fm = build_feature_matrix(race, quali, weather_df=weather, pit_df=pit, sprint_df=sprint)
 train_rows = fm[(fm.year == YEAR) & (fm["round"] == RND)].set_index("driver")[FEATURE_COLS]
 
 r = race[(race.year == YEAR) & (race["round"] == RND)]
@@ -62,7 +62,7 @@ class _Stub:
 
 xm.XGBRacePredictor.load = classmethod(lambda cls, name: _Stub())
 try:
-    run_inference(YEAR, RND, quali_df, hist, weather_dict, practice_df=None, pit_df=pit, sprint_df=sprint)
+    run_inference(YEAR, RND, quali_df, hist, weather_dict, pit_df=pit, sprint_df=sprint)
 except _Captured:
     pass
 # X loses the driver column and predict.py reorders rows: align on grid position

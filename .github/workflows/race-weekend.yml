@@ -5,8 +5,8 @@ name: Race weekend
 # data, model and site/f1-predictions.json. The website copies that JSON.
 #
 # Scheduled workflows on public repos are disabled after 60 days without a
-# commit, which the December-February off-season will trigger: re-enable it
-# from the Actions tab before the first race weekend.
+# commit. scripts/keepalive.py (weekly Windows scheduled task on Leon's PC)
+# commits .github/keepalive.txt over the off-season to prevent that.
 
 on:
   schedule:

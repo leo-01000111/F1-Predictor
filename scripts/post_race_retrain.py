@@ -32,8 +32,6 @@ def main(year: int, round_num: int) -> None:
     from src.data_collection.f1_live import get_completed_season_race_results
     from src.data_collection.f1_historical import (
         load_quali_results,
-        load_practice_results,
-        load_lap_extras,
         load_pit_stops,
         load_sprint_results,
     )
@@ -95,8 +93,6 @@ def main(year: int, round_num: int) -> None:
         sys.exit(1)
 
     weather_df = None
-    practice_df = None
-    lap_extras_df = None
     pit_df = None
     sprint_df = None
 
@@ -104,15 +100,6 @@ def main(year: int, round_num: int) -> None:
         weather_df = load_weather_history()
     except FileNotFoundError:
         logger.warning("No weather data found. Proceeding without weather features.")
-    try:
-        practice_df = load_practice_results()
-    except FileNotFoundError:
-        logger.warning("No practice data found. FP features will be zero.")
-    try:
-        lap_extras_df = load_lap_extras()
-        logger.info(f"Lap extras: {len(lap_extras_df)} rows")
-    except FileNotFoundError:
-        logger.warning("No lap_extras.parquet. Start delta/compound features will be zero.")
     try:
         pit_df = load_pit_stops()
         logger.info(f"Pit stop data: {len(pit_df)} rows")
@@ -128,8 +115,6 @@ def main(year: int, round_num: int) -> None:
         race_df=merged,
         quali_df=quali_df,
         weather_df=weather_df,
-        practice_df=practice_df,
-        lap_extras_df=lap_extras_df,
         pit_df=pit_df,
         sprint_df=sprint_df,
     )

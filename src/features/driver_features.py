@@ -135,43 +135,6 @@ def add_circuit_history(
     return df
 
 
-def add_driver_start_delta(race_df: pd.DataFrame, window: int = 10) -> pd.DataFrame:
-    """
-    Rolling average of grid places gained or lost at race start (end of lap 1).
-
-    Positive value = gained places (good starter).
-    Negative value = lost places (poor starter).
-
-    Formula: grid_position - lap1_position  (higher grid_pos = further back on grid)
-
-    Requires 'lap1_position' column (position at end of lap 1) in the DataFrame.
-    If that column is absent — which is the case until historical lap data is
-    backfilled — the feature defaults to 0.0 for all drivers.
-
-    Uses a rolling 10-race mean with min_periods=3 (same window as driver_form_10).
-    Drivers with fewer than 3 races default to 0.0.
-    """
-    df = race_df.copy().sort_values(["driver", "year", "round"])
-
-    if "lap1_position" not in df.columns:
-        df["driver_start_delta_avg"] = 0.0
-        return df
-
-    df["_start_delta"] = (
-        pd.to_numeric(df["grid_position"], errors="coerce")
-        - pd.to_numeric(df["lap1_position"], errors="coerce")
-    )
-
-    df["driver_start_delta_avg"] = (
-        df.groupby("driver")["_start_delta"]
-        .transform(
-            lambda x: x.shift(1).rolling(window, min_periods=3).mean().fillna(0.0)
-        )
-    )
-    df = df.drop(columns=["_start_delta"])
-    return df
-
-
 def add_elo_ratings(
     race_df: pd.DataFrame,
     k_base: float = 32.0,

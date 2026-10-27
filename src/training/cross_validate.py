@@ -43,7 +43,6 @@ def main() -> None:
     args = parser.parse_args()
 
     from src.data_collection.f1_historical import (
-        load_lap_extras,
         load_pit_stops,
         load_quali_results,
         load_race_results,
@@ -74,10 +73,6 @@ def main() -> None:
         except FileNotFoundError:
             weather_df = None
         try:
-            lap_extras_df = load_lap_extras()
-        except FileNotFoundError:
-            lap_extras_df = None
-        try:
             pit_df = load_pit_stops()
         except FileNotFoundError:
             pit_df = None
@@ -85,7 +80,7 @@ def main() -> None:
             sprint_df = load_sprint_results()
         except FileNotFoundError:
             sprint_df = None
-        fm = build_feature_matrix(race_df, quali_df, weather_df, None, lap_extras_df, pit_df, sprint_df)
+        fm = build_feature_matrix(race_df, quali_df, weather_df, pit_df, sprint_df)
 
     if "target_position" not in fm.columns:
         logger.error("target_position column missing. Run build_features first.")

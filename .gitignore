@@ -91,3 +91,6 @@ write_files.py
 # Local artifacts
 models/snapshots/
 data/bookmaker_odds/
+
+# keepalive.py run log (local only)
+logs/

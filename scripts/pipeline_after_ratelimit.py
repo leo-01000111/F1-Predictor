@@ -55,7 +55,7 @@ def main():
     # Step 1: Collect 2020-2024 data (merge with existing 2014-2019)
     run(
         [sys.executable, "-m", "src.data_collection.f1_historical",
-         "--start", "2020", "--end", "2024", "--no-fp", "--sleep", "0.3", "--merge"],
+         "--start", "2020", "--end", "2024", "--sleep", "0.3", "--merge"],
         "F1 data collection 2020-2024 (merge mode)"
     )
 

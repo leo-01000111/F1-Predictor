@@ -5,24 +5,18 @@ Race Weekend Inference Script
 Run this script after qualifying concludes on Saturday.
 It will automatically:
   1. Pull qualifying results from OpenF1
-  2. Pull FP1/FP2/FP3 lap metrics from OpenF1
-  3. Attempt to fetch start tire compounds (available post-race for retroactive use)
-  4. Fetch race-day weather forecast from Open-Meteo
-  5. Build features and run the XGBoost model
-  6. Save predictions to data/predictions/{year}_R{round}.json
-  7. The Streamlit dashboard auto-refreshes from the latest prediction file
+  2. Fetch race-day weather forecast from Open-Meteo
+  3. Build features and run the XGBoost model
+  4. Save predictions to data/predictions/{year}_R{round}.json
+  5. The Streamlit dashboard auto-refreshes from the latest prediction file
 
 2026 workflow (22-driver grid):
   - Grid size is handled dynamically; no config changes needed
-  - start_compound will default to Medium pre-race (correct behavior)
   - After each race completes, run update_race_result.py to record actuals
 
 Usage:
     # After qualifying Saturday:
     python scripts/race_weekend_inference.py --year 2026 --round N
-
-    # 30 min before race (grid walk) -- pass tyre choices from broadcast:
-    python scripts/race_weekend_inference.py --year 2026 --round N --compounds VER:SOFT NOR:MEDIUM RUS:HARD
 
     # Dry run with a past race (for testing):
     python scripts/race_weekend_inference.py --year 2024 --round 10 --dry-run
@@ -45,31 +39,15 @@ sys.path.insert(0, str(ROOT))
 from loguru import logger
 
 
-def _parse_compounds(raw: list[str]) -> dict[str, str]:
-    """Parse ['VER:SOFT', 'NOR:MEDIUM', ...] into {'VER': 'SOFT', ...}."""
-    result = {}
-    for item in raw:
-        if ":" not in item:
-            logger.warning(f"Ignoring malformed --compounds entry '{item}' (expected DRIVER:COMPOUND)")
-            continue
-        driver, compound = item.split(":", 1)
-        result[driver.strip().upper()] = compound.strip().upper()
-    return result
-
-
 def main(
     year: int,
     round_num: int,
     dry_run: bool = False,
-    manual_compounds: dict[str, str] | None = None,
 ) -> None:
 
     from src.data_collection.f1_live import (
-        get_live_practice_dataframe,
         get_live_quali_dataframe,
-        get_live_sprint_pace_dataframe,
         get_completed_season_race_results,
-        get_start_compounds,
     )
     from src.data_collection.weather import get_race_day_forecast
     from src.data_collection.f1_historical import load_race_results, load_pit_stops, load_sprint_results
@@ -128,52 +106,7 @@ def main(
     print(quali_df[["driver_abbr", "team", "quali_position", "quali_gap_to_pole_s"]].to_string(index=False))
 
     # ------------------------------------------------------------------ #
-    # 3. Pull live FP1/FP2/FP3 data
-    # ------------------------------------------------------------------ #
-    logger.info(f"Fetching FP1/FP2/FP3 results for {year} R{round_num}...")
-    practice_df = get_live_practice_dataframe(year, round_num)
-    if practice_df.empty:
-        logger.warning("Could not fetch any FP sessions. Proceeding without FP features.")
-    else:
-        logger.info(f"Fetched practice data for {practice_df['driver'].nunique()} drivers")
-
-    # ------------------------------------------------------------------ #
-    # 3c. Sprint race pace (sprint weekends only)
-    #     Substitutes fp2_best_gap_s / fp_long_run_delta where FP2/FP3 absent.
-    # ------------------------------------------------------------------ #
-    logger.info(f"Checking for sprint race pace data for {year} R{round_num}...")
-    live_sprint_pace_df = get_live_sprint_pace_dataframe(year, round_num)
-    if not live_sprint_pace_df.empty:
-        logger.info(
-            f"Sprint pace available: {len(live_sprint_pace_df)} drivers — "
-            "will substitute fp2_best_gap_s / fp_long_run_delta for this sprint weekend."
-        )
-    else:
-        logger.info("No sprint pace data (normal weekend or sprint not yet run).")
-
-    # ------------------------------------------------------------------ #
-    # 3b. Start tire compounds
-    #     Priority: --compounds flag > OpenF1 API > default Medium
-    # ------------------------------------------------------------------ #
-    if manual_compounds:
-        quali_df["start_compound"] = quali_df["driver_abbr"].map(manual_compounds)
-        missing = quali_df[quali_df["start_compound"].isna()]["driver_abbr"].tolist()
-        if missing:
-            logger.warning(f"No compound specified for: {missing} -- defaulting to Medium")
-            quali_df["start_compound"] = quali_df["start_compound"].fillna("MEDIUM")
-        logger.info(f"Manual compounds applied: {manual_compounds}")
-    else:
-        logger.info(f"Attempting to fetch start compounds for {year} R{round_num}...")
-        compounds = get_start_compounds(year, round_num)
-        if compounds:
-            quali_df["start_compound"] = quali_df["driver_abbr"].map(compounds)
-            logger.info(f"Start compounds applied: {compounds}")
-        else:
-            logger.info("Start compound data not yet available (pre-race is normal). Defaulting to Medium.")
-            logger.info("Tip: pass --compounds VER:SOFT NOR:MEDIUM ... using grid-walk broadcast data.")
-
-    # ------------------------------------------------------------------ #
-    # 4. Get race-day weather forecast
+    # 3. Get race-day weather forecast
     # ------------------------------------------------------------------ #
     circuit_key = quali_df["circuit_key"].iloc[0] if "circuit_key" in quali_df.columns else ""
     race_date = quali_df["race_date"].iloc[0] if "race_date" in quali_df.columns else ""
@@ -208,20 +141,17 @@ def main(
         f"Wet: {'Yes' if weather_dict.get('is_wet_race') else 'No'}"
     )
     # ------------------------------------------------------------------ #
-    # 5. Run inference
+    # 4. Run inference
     # ------------------------------------------------------------------ #
     if dry_run:
         logger.info("DRY RUN: skipping model inference, printing data only")
         print("\nQuali results:")
         print(quali_df.to_string(index=False))
-        if not practice_df.empty:
-            print("\nPractice features:")
-            print(practice_df.to_string(index=False))
         print(f"\nWeather: {weather_dict}")
         return
 
     # ------------------------------------------------------------------ #
-    # 5b. Load supplemental data (pit stops + sprint results)
+    # 4b. Load supplemental data (pit stops + sprint results)
     # ------------------------------------------------------------------ #
     pit_df = None
     sprint_df = None
@@ -238,17 +168,6 @@ def main(
         logger.info("No sprint_results.parquet; sprint_position_rel will be 0.5. "
                     "Run: python scripts/backfill_pit_sprint.py --sprint --merge")
 
-    # Merge live sprint pace into sprint_df so feature pipeline sees it.
-    # live_sprint_pace_df has the current-weekend sprint laps;
-    # sprint_df from parquet covers historical sprint rounds.
-    if not live_sprint_pace_df.empty:
-        if sprint_df is not None and not sprint_df.empty:
-            sprint_df = pd.concat([sprint_df, live_sprint_pace_df], ignore_index=True).drop_duplicates(
-                subset=["year", "round", "driver"], keep="last"
-            )
-        else:
-            sprint_df = live_sprint_pace_df
-
     logger.info("Running model inference...")
     result = run_inference(
         year=year,
@@ -256,13 +175,12 @@ def main(
         quali_df=quali_df,
         race_df_history=race_df_history,
         weather_dict=weather_dict,
-        practice_df=practice_df,
         pit_df=pit_df,
         sprint_df=sprint_df,
     )
 
     # ------------------------------------------------------------------ #
-    # 6. Print summary
+    # 5. Print summary
     # ------------------------------------------------------------------ #
     print(f"\n{'='*60}")
     print(f"F1 RACE PREDICTIONS -- {year} Round {round_num} ({circuit_key.upper()})")
@@ -285,20 +203,11 @@ if __name__ == "__main__":
     parser.add_argument("--year", type=int, required=True, help="Race year (e.g. 2026)")
     parser.add_argument("--round", type=int, required=True, dest="round_num", help="Round number")
     parser.add_argument("--dry-run", action="store_true", help="Print data without running model")
-    parser.add_argument(
-        "--compounds", nargs="+", metavar="DRIVER:COMPOUND",
-        help=(
-            "Manual tyre compounds from grid-walk broadcast (overrides OpenF1). "
-            "Format: VER:SOFT NOR:MEDIUM RUS:HARD ... "
-            "Valid compounds: SOFT, MEDIUM, HARD, INTERMEDIATE, WET"
-        ),
-    )
     args = parser.parse_args()
 
     main(
         year=args.year,
         round_num=args.round_num,
         dry_run=args.dry_run,
-        manual_compounds=_parse_compounds(args.compounds) if args.compounds else None,
     )
 

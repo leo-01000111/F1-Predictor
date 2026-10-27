@@ -27,7 +27,6 @@ from src.features.driver_features import (
     add_dnf_rate,
     add_circuit_history,
     add_teammate_quali_delta,
-    add_driver_start_delta,
     add_elo_ratings,
     add_wet_performance,
     add_championship_pressure,
@@ -43,7 +42,6 @@ from src.features.team_features import (
     add_team_rolling_form,
 )
 from src.features.weather_features import merge_weather
-from src.features.practice_features import merge_practice_features
 from src.features.circuits import canonicalize_circuits
 
 ROOT = Path(__file__).parent.parent.parent
@@ -88,30 +86,6 @@ CIRCUIT_SC_RATE: dict[str, float] = {
 }
 _DEFAULT_SC_RATE: float = 0.12
 
-# Race start tire compound encoding: Soft=0, Medium=1, Hard=2, Intermediate=3, Wet=4
-COMPOUND_MAP: dict[str, int] = {
-    "SOFT": 0, "MEDIUM": 1, "HARD": 2, "INTERMEDIATE": 3, "WET": 4,
-}
-_DEFAULT_COMPOUND: int = 1  # Medium fallback when tire data unavailable
-
-# Historical modal start compound per circuit (hybrid era).
-# Unlisted circuits default to Medium (1).
-CIRCUIT_TYPICAL_COMPOUND: dict[str, int] = {
-    "monaco": 0,       # Soft
-    "singapore": 0,    # Soft
-    "hungaroring": 0,  # Soft
-    "baku": 1,         # Medium
-    "miami": 1,        # Medium
-    "albert_park": 1,  # Medium
-    "jeddah": 1,       # Medium
-    "bahrain": 1,      # Medium
-    "spa": 1,          # Medium
-    "silverstone": 1,  # Medium
-    "monza": 2,        # Hard (long straights favour hard)
-    "abu_dhabi": 1,    # Medium
-}
-_DEFAULT_TYPICAL_COMPOUND: int = 1
-
 # Final feature column list (used by models)
 FEATURE_COLS = [
     # Qualifying — circuit-invariant
@@ -126,8 +100,6 @@ FEATURE_COLS = [
     "driver_form_5",
     "driver_form_10",
     "driver_form_ewm",              # exponential weighted (span=5): recent races count more
-    # Start performance
-    "driver_start_delta_avg",       # rolling 10-race mean of grid_pos - lap1_pos (positive = gains places)
     # Circuit history
     "circuit_avg_finish",
     "circuit_podiums",
@@ -150,14 +122,6 @@ FEATURE_COLS = [
     "windspeed_ms_mean",
     "humidity_pct_mean",
     "is_wet_race",
-    # Free practice
-    "fp_best_gap_s",
-    "fp2_best_gap_s",
-    "fp_long_run_delta",
-    # fp_total_laps removed (near-zero SHAP; total laps is strategic, not a reliability signal)
-    # Tire strategy
-    "start_compound_code",          # Soft=0, Medium=1, Hard=2, Intermediate=3, Wet=4; fallback=1
-    "compound_aggression_delta",    # start_compound_code - circuit_typical_start_compound
     # Season progression
     "round_fraction",   # (round-1)/(total_rounds-1): 0=opener, 1=finale; captures early vs late season dynamics
     # Driver Elo
@@ -193,8 +157,6 @@ def build_feature_matrix(
     race_df: pd.DataFrame,
     quali_df: pd.DataFrame,
     weather_df: Optional[pd.DataFrame] = None,
-    practice_df: Optional[pd.DataFrame] = None,
-    lap_extras_df: Optional[pd.DataFrame] = None,
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
@@ -205,27 +167,9 @@ def build_feature_matrix(
     """
     logger.info("Building feature matrix...")
 
-    # ------------------------------------------------------------------ #
-    # 0. Merge lap extras (lap1_position + start_compound) into race_df
-    # ------------------------------------------------------------------ #
-    # These columns activate driver_start_delta_avg and start_compound_code.
-    # If not provided, those features fall back to 0.0 / Medium respectively.
     # Canonical track IDs first, so circuit history and the circuit lookups
     # use the same keys as inference (see src/features/circuits.py).
     df = canonicalize_circuits(race_df)
-    if lap_extras_df is not None and not lap_extras_df.empty:
-        extras_cols = [c for c in ["year", "round", "driver", "lap1_position", "start_compound"]
-                       if c in lap_extras_df.columns]
-        extras_sub = lap_extras_df[extras_cols]
-        df = df.merge(extras_sub, on=["year", "round", "driver"], how="left")
-        n_lap1 = int(df["lap1_position"].notna().sum()) if "lap1_position" in df.columns else 0
-        n_cmp = int(df["start_compound"].notna().sum()) if "start_compound" in df.columns else 0
-        logger.info(
-            f"Merged lap extras: {n_lap1}/{len(df)} rows with lap1_position, "
-            f"{n_cmp}/{len(df)} rows with start_compound"
-        )
-    else:
-        logger.debug("No lap_extras_df provided; driver_start_delta_avg and start_compound_code will be zero-filled")
 
     # ------------------------------------------------------------------ #
     # 1. Driver form and championship features (from race results)
@@ -234,7 +178,6 @@ def build_feature_matrix(
     df = add_championship_standing(df)
     df = add_dnf_rate(df)
     df = add_circuit_history(df, circuit_history_seasons=5)
-    df = add_driver_start_delta(df)
     df = add_elo_ratings(df)
     df = add_championship_pressure(df)
     df = add_driver_experience(df)
@@ -324,11 +267,6 @@ def build_feature_matrix(
     df = add_wet_performance(df)
 
     # ------------------------------------------------------------------ #
-    # 4. Merge free practice features (FP1/FP2/FP3)
-    # ------------------------------------------------------------------ #
-    df = merge_practice_features(df, practice_df, sprint_df=sprint_df)
-
-    # ------------------------------------------------------------------ #
     # 4b. Derived quali features (computed after quali merge)
     # ------------------------------------------------------------------ #
 
@@ -387,27 +325,6 @@ def build_feature_matrix(
     else:
         df["is_street_circuit"] = 0.0
         df["circuit_safety_car_rate"] = _DEFAULT_SC_RATE
-
-    # ------------------------------------------------------------------ #
-    # 4d. Tire strategy features
-    # ------------------------------------------------------------------ #
-    # start_compound_code: encode starting tire compound
-    # Source: 'start_compound' column (if available from data collection).
-    # Fallback: Medium (1) when tire data is not present.
-    if "start_compound" in df.columns:
-        df["start_compound_code"] = (
-            df["start_compound"].str.upper().map(COMPOUND_MAP).fillna(_DEFAULT_COMPOUND)
-        )
-    else:
-        df["start_compound_code"] = float(_DEFAULT_COMPOUND)
-
-    # compound_aggression_delta: start_compound_code - circuit_typical_start_compound
-    # Negative = more aggressive (softer) than circuit norm; positive = conservative.
-    if "circuit_key" in df.columns:
-        typical = df["circuit_key"].str.lower().map(CIRCUIT_TYPICAL_COMPOUND).fillna(_DEFAULT_TYPICAL_COMPOUND)
-    else:
-        typical = _DEFAULT_TYPICAL_COMPOUND
-    df["compound_aggression_delta"] = df["start_compound_code"] - typical
 
     # ------------------------------------------------------------------ #
     # 5. Ensure all feature columns exist; fill missing with medians
@@ -529,8 +446,7 @@ def get_X_y(df: pd.DataFrame, target: str = "p1") -> tuple[pd.DataFrame, pd.Seri
 
 if __name__ == "__main__":
     from src.data_collection.f1_historical import (
-        load_race_results, load_quali_results, load_practice_results,
-        load_lap_extras, load_pit_stops, load_sprint_results,
+        load_race_results, load_quali_results, load_pit_stops, load_sprint_results,
     )
     from src.data_collection.weather import load_weather_history
 
@@ -542,20 +458,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         logger.warning("Weather data not found, proceeding without it")
         weather_df = None
-
-    try:
-        practice_df = load_practice_results()
-    except FileNotFoundError:
-        logger.warning("Practice data not found, proceeding without it")
-        practice_df = None
-
-    try:
-        lap_extras_df = load_lap_extras()
-        logger.info(f"Lap extras: {len(lap_extras_df)} rows")
-    except FileNotFoundError:
-        logger.info("No lap_extras.parquet found; start_delta/compound will be zero. "
-                    "Run: python scripts/backfill_lap_extras.py --start 2018 --end 2025 --merge")
-        lap_extras_df = None
 
     try:
         pit_df = load_pit_stops()
@@ -577,8 +479,6 @@ if __name__ == "__main__":
         race_df=race_df,
         quali_df=quali_df,
         weather_df=weather_df,
-        practice_df=practice_df,
-        lap_extras_df=lap_extras_df,
         pit_df=pit_df,
         sprint_df=sprint_df,
     )
