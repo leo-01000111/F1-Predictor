@@ -25,6 +25,8 @@ RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+# Archived forecasts as they stood N days before, for predicting past races
+PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
 
 HOURLY_VARS = [
     "temperature_2m",
@@ -412,6 +414,51 @@ def get_race_day_forecast(circuit_key: str, race_date: str) -> dict:
     if hourly_df is None:
         return {}
 
+    return _aggregate_race_day_weather(hourly_df, race_date)
+
+
+def get_past_race_forecast(
+    circuit_key: str,
+    race_date: str,
+    location: Optional[str] = None,
+    days_before: int = 1,
+) -> dict:
+    """
+    Race-day forecast as it stood `days_before` days ahead, for a race already run.
+
+    Live inference runs after Saturday qualifying, so a day-before forecast is
+    what it would have seen. Same aggregation as get_race_day_forecast().
+    """
+    race_dt = pd.to_datetime(race_date)
+    coords = _resolve_circuit_coords(circuit_key, year=race_dt.year, location=location)
+    if coords is None:
+        logger.error(f"Cannot find coords for circuit '{circuit_key}'")
+        return {}
+
+    suffix = f"_previous_day{days_before}"
+    params = {
+        "latitude": coords[0],
+        "longitude": coords[1],
+        "start_date": race_dt.strftime("%Y-%m-%d"),
+        "end_date": race_dt.strftime("%Y-%m-%d"),
+        "hourly": ",".join(v + suffix for v in HOURLY_VARS),
+        "timezone": "UTC",
+    }
+    try:
+        resp = requests.get(PREVIOUS_RUNS_URL, params=params, headers={"Connection": "close"}, timeout=30)
+        resp.raise_for_status()
+        hourly = resp.json().get("hourly", {})
+    except Exception as exc:
+        logger.warning(f"Past forecast fetch failed for {circuit_key} {race_date}: {exc}")
+        return {}
+    if "time" not in hourly:
+        return {}
+
+    hourly_df = pd.DataFrame(hourly).rename(columns=lambda c: c.removesuffix(suffix))
+    hourly_df["time"] = pd.to_datetime(hourly_df["time"])
+    if hourly_df[HOURLY_VARS].isna().all().any():
+        logger.warning(f"Past forecast incomplete for {circuit_key} {race_date}")
+        return {}
     return _aggregate_race_day_weather(hourly_df, race_date)
 
 

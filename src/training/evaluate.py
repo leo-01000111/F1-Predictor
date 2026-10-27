@@ -34,7 +34,7 @@ def evaluate_race_predictions(
     metrics : dict with winner_accuracy, podium_accuracy, brier_p1,
               mean_spearman_r, mean_mae_position, n_holdout_races.
     race_results : DataFrame — one row per race, compatible with the
-                   holdout_race_results.parquet schema used by the dashboard.
+                   holdout_race_results.parquet schema.
     """
     from scipy.stats import spearmanr
 

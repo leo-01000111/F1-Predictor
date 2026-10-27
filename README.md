@@ -1,6 +1,6 @@
 # F1 race outcome prediction pipeline
 
-Predicts finishing-position probabilities (win, P2, P3, podium, top 6, top 10) for every driver before an F1 race. A single XGBoost regressor predicts each driver's finish position, and a Plackett-Luce simulation turns those predictions into a position probability matrix. Training data starts in 2014. A Streamlit dashboard displays the predictions.
+Predicts finishing-position probabilities (win, P2, P3, podium, top 6, top 10) for every driver before an F1 race. A single XGBoost regressor predicts each driver's finish position, and a Plackett-Luce simulation turns those predictions into a position probability matrix. Training data starts in 2014. GitHub Actions runs it every race weekend and publishes the predictions on [leongorecki.eu](https://leongorecki.eu/projects/f1predictor.html).
 
 The raw and processed data (about 1 MB of parquet), the predictions and results, and the active model (`models/xgb_race.pkl`) are committed, because the GitHub Actions automation below uses them as state. The FastF1 cache and other model artifacts are git-ignored.
 
@@ -42,7 +42,7 @@ python scripts/backfill_pit_sprint.py --sprint --start 2021 --end 2025 --merge
 python scripts/quick_train.py
 ```
 
-`quick_train.py` loads the raw data, builds the feature matrix (`data/processed/feature_matrix.parquet`), trains the model, and writes the artifacts the dashboard reads. It runs in two passes, described under [Evaluation](#evaluation). To rebuild only the feature matrix, run `python -m src.features.build_features`.
+`quick_train.py` loads the raw data, builds the feature matrix (`data/processed/feature_matrix.parquet`), trains the model, and writes the model and evaluation artifacts. It runs in two passes, described under [Evaluation](#evaluation). To rebuild only the feature matrix, run `python -m src.features.build_features`.
 
 <!-- TODO: add measured training time for quick_train.py -->
 
@@ -75,13 +75,6 @@ python scripts/post_race_retrain.py --year 2026 --round 5
 # Per-round accuracy and calibration summary for a season, from data/results/
 python scripts/season_accuracy.py --year 2026
 ```
-
-### 7. Launch the dashboard
-```bash
-streamlit run src/ui/app.py
-```
-
-The dashboard is a Streamlit app with four tabs: Race Desk, SHAP Analysis, Historical, and Control Panel. The Control Panel runs inference, result recording and retraining as background tasks. The Race Desk includes an expected-value table that takes a bookmaker odds CSV with the columns `driver, bm_win, bm_1-3, bm_1-6, bm_1-10`.
 
 ## Automation (GitHub Actions)
 
@@ -152,13 +145,7 @@ python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
 │   ├── inference/
 │   │   └── predict.py           # feature assembly and prediction JSON
 │   ├── pipeline/
-│   │   └── actions.py           # actions used by the dashboard's Control Panel
-│   └── ui/
-│       ├── app.py               # Streamlit entry point
-│       ├── services.py
-│       └── views/
-├── tests/
-│   └── test_ui_services.py
+│   │   └── actions.py           # inference and result-recording actions
 ├── PROJECT_DESCRIPTION.md       # older description, see note below
 └── requirements.txt
 ```
@@ -200,7 +187,7 @@ The 34 model inputs are listed in `FEATURE_COLS` in `src/features/build_features
 
 `scripts/quick_train.py` runs two passes.
 
-1. Evaluation pass. The last two seasons present in the feature matrix are the holdout (2023 and 2024 for data collected through 2024, or 2024 and 2025 if you also collected 2025). The third-from-last season is also kept out of training, and the rest are used for training. Probabilities come from the Plackett-Luce sampler. Metrics (winner accuracy, podium accuracy, P1 Brier score, Spearman correlation, mean position error, expected calibration error) are written to `models/holdout_metrics.json`, alongside per-race results, a P1 calibration curve and SHAP values for the dashboard. With fewer than 8 seasons the split shrinks (see the script).
+1. Evaluation pass. The last two seasons present in the feature matrix are the holdout (2023 and 2024 for data collected through 2024, or 2024 and 2025 if you also collected 2025). The third-from-last season is also kept out of training, and the rest are used for training. Probabilities come from the Plackett-Luce sampler. Metrics (winner accuracy, podium accuracy, P1 Brier score, Spearman correlation, mean position error, expected calibration error) are written to `models/holdout_metrics.json`, alongside per-race results, a P1 calibration curve and SHAP values. With fewer than 8 seasons the split shrinks (see the script).
 2. Production pass. The active model (`models/xgb_race.pkl`) is retrained on every season except the most recent one in the data. This includes seasons that were holdout in pass 1 (with data through 2024, 2023 is in the production training set and 2024 is not). The holdout metrics therefore describe the pass 1 model, not the production model.
 
 `python -m src.training.cross_validate` runs leave-one-season-out cross-validation: each season from `--min-year` (default 2019) to `--max-year` is held out in turn and the model is trained on all other seasons, including later ones. Results go to `models/loso_cv_results.parquet` and `models/loso_cv_summary.json`.
@@ -215,22 +202,10 @@ Settings are defined in `config/settings.py` and read from environment variables
 
 | Variable | Default | Used for |
 |---|---|---|
-| `ODDS_API_KEY` | empty | The Odds API key for `src/data_collection/odds.py`. Read with `os.getenv`, so export it in the shell (a `.env` file is not loaded into the environment by this code). Nothing in the pipeline or dashboard calls the odds fetcher yet. |
-| `UI_DENSITY_DEFAULT` | `dense` | Dashboard density, `dense` or `comfort` |
-| `UI_ENABLE_LIVE_WIDGETS` | `false` | Optional live widgets in the dashboard |
-| `UI_TASK_POLL_SECONDS` | `5` | Background task polling interval |
-| `UI_MAX_VISIBLE_BLOCKS` | `6` | Maximum visible dashboard blocks |
+| `ODDS_API_KEY` | empty | The Odds API key for `src/data_collection/odds.py`. Read with `os.getenv`, so export it in the shell (a `.env` file is not loaded into the environment by this code). Nothing in the pipeline calls the odds fetcher yet. |
 | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | empty, empty, `f1_prediction_bot/1.0` | Legacy, only for the archived sentiment experiment |
 
 FastF1, OpenF1 and Open-Meteo need no keys.
-
-## Tests
-
-```bash
-pip install pytest
-pytest tests
-```
-The tests cover the dashboard service helpers (`tests/test_ui_services.py`). `pytest` is not listed in `requirements.txt`.
 
 ## Notes
 

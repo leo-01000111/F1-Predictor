@@ -6,7 +6,7 @@
 
 ## What it is
 
-An end-to-end machine learning pipeline that predicts Formula 1 race podium probabilities (P1/P2/P3) for every driver before a race weekend. Given qualifying results and contextual data, the system outputs per-driver win and podium probabilities, displayed in a Streamlit dashboard.
+An end-to-end machine learning pipeline that predicts Formula 1 race podium probabilities (P1/P2/P3) for every driver before a race weekend. Given qualifying results and contextual data, the system outputs per-driver win and podium probabilities, published on leongorecki.eu by a GitHub Actions workflow.
 
 **Scope:** 2014–2025 hybrid-era training data. Current target: 2026 season inference.
 
@@ -155,39 +155,12 @@ python scripts/update_race_result.py --year YYYY --round N
 
 ---
 
-## Streamlit dashboard — 4 pages
-
-### Race Desk
-- Per-driver win probability bar chart (team-coloured)
-- Podium probability heatmap (drivers × P1/P2/P3)
-- Top-3 podium cards with delta vs prior round
-- Full driver table with probability columns + delta column
-- Season win probability trend chart (round-by-round, multi-driver)
-- Post-race result tracker: predicted vs actual, Brier score, podium overlap
-
-### Historical Accuracy
-- Winner accuracy and Brier score summary cards
-- Calibration curve (predicted vs actual probability)
-- Per-race accuracy leaderboard across seasons
-
-### Feature Explorer
-- SHAP bar chart, beeswarm, and waterfall plots
-- XGBoost gain-based feature importance
-- Feature correlation heatmap
-
-### Control Panel
-- Queue inference, quick retrain, full retrain — all in-process (no subprocess calls)
-- Background task monitor with progress and status
-- Active model metadata display (family, training window, artifact paths)
-
----
-
 ## Model registry and artifact management
 
 - `models/active_model.json` — records which model family is active, training/calibration year ranges, artifact file paths
 - `models/holdout_metrics.json` — family-agnostic holdout results
 - `models/holdout_metrics_xgb.json` / `models/holdout_metrics_ensemble.json` — family-specific metrics
-- `models/shap_values_p1.parquet` — pre-computed at train time; dashboard reads directly (no live SHAP computation)
+- `models/shap_values_p1.parquet` — pre-computed at train time
 
 ---
 
@@ -229,10 +202,6 @@ src/
     predict.py           # Inference engine
   pipeline/
     actions.py           # Shared in-process action runner
-  ui/
-    app.py               # Streamlit shell (layout, navigation, context bar)
-    services.py          # UI data layer
-    views/               # Page renderers (race_prediction, historical_accuracy, ...)
 
 scripts/
   quick_train.py               # XGB-only train (~5 min)

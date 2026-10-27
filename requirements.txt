@@ -33,11 +33,6 @@ pydantic>=2.4.0
 pydantic-settings>=2.0.0
 pyyaml>=6.0.1
 
-# UI
-streamlit>=1.28.0
-plotly>=5.17.0
-altair>=5.1.0
-
 # Utilities
 python-dotenv>=1.0.0
 tqdm>=4.66.0

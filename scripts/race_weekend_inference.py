@@ -8,7 +8,6 @@ It will automatically:
   2. Fetch race-day weather forecast from Open-Meteo
   3. Build features and run the XGBoost model
   4. Save predictions to data/predictions/{year}_R{round}.json
-  5. The Streamlit dashboard auto-refreshes from the latest prediction file
 
 2026 workflow (22-driver grid):
   - Grid size is handled dynamically; no config changes needed
@@ -195,7 +194,6 @@ def main(
         )
 
     print(f"\nPredictions saved to: data/predictions/{year}_R{round_num:02d}.json")
-    print("Launch the dashboard: streamlit run src/ui/app.py")
 
 
 if __name__ == "__main__":

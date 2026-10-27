@@ -6,7 +6,7 @@ Evaluation uses PlackettLuceSampler to convert predicted positions to
 coherent podium probabilities before computing metrics.
 
 Two-pass strategy:
-  Pass 1 (evaluation): honest holdout metrics + dashboard artifacts.
+  Pass 1 (evaluation): honest holdout metrics + evaluation artifacts.
   Pass 2 (production): retrain on recency-maximised split, overwrite active artifacts.
 
 Usage:

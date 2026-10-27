@@ -1,5 +1,5 @@
 {
- "updated_at": "2026-10-27T18:53:51Z",
+ "updated_at": "2026-10-27T19:11:16Z",
  "season": 2026,
  "model": {
   "trained_at": "2026-10-27T18:53:00.415228+00:00",
@@ -14,7 +14,41 @@
   "holdout_races": 42,
   "winner_accuracy": 0.4523809523809524,
   "podium_accuracy": 0.6349206349206349,
-  "spearman": 0.6635603690196695
+  "spearman": 0.6635603690196695,
+  "importance": [
+   {
+    "group": "qualifying",
+    "share": 0.553
+   },
+   {
+    "group": "car",
+    "share": 0.156
+   },
+   {
+    "group": "driver",
+    "share": 0.119
+   },
+   {
+    "group": "championship",
+    "share": 0.072
+   },
+   {
+    "group": "weather",
+    "share": 0.043
+   },
+   {
+    "group": "reliability",
+    "share": 0.028
+   },
+   {
+    "group": "circuit",
+    "share": 0.025
+   },
+   {
+    "group": "sprint",
+    "share": 0.005
+   }
+  ]
  },
  "next": {
   "status": "awaiting_qualifying",
@@ -47,8 +81,8 @@
     "driver": "ANT",
     "team": "Mercedes",
     "grid": 1,
-    "p_win": 0.5651,
-    "p_podium": 0.9555,
+    "p_win": 0.5819,
+    "p_podium": 0.9647,
     "p_top10": 1.0,
     "finish": 1
    },
@@ -56,8 +90,8 @@
     "driver": "VER",
     "team": "Red Bull",
     "grid": 2,
-    "p_win": 0.1715,
-    "p_podium": 0.696,
+    "p_win": 0.189,
+    "p_podium": 0.755,
     "p_top10": 1.0,
     "finish": 3
    },
@@ -65,8 +99,8 @@
     "driver": "HAD",
     "team": "Red Bull",
     "grid": 3,
-    "p_win": 0.1061,
-    "p_podium": 0.5197,
+    "p_win": 0.0853,
+    "p_podium": 0.4601,
     "p_top10": 1.0,
     "finish": 6
    },
@@ -74,8 +108,8 @@
     "driver": "HAM",
     "team": "Ferrari",
     "grid": 5,
-    "p_win": 0.0815,
-    "p_podium": 0.416,
+    "p_win": 0.0791,
+    "p_podium": 0.4328,
     "p_top10": 1.0,
     "finish": 4
    },
@@ -83,8 +117,8 @@
     "driver": "LEC",
     "team": "Ferrari",
     "grid": 4,
-    "p_win": 0.0523,
-    "p_podium": 0.296,
+    "p_win": 0.0423,
+    "p_podium": 0.2658,
     "p_top10": 1.0,
     "finish": 2
    },
@@ -92,8 +126,8 @@
     "driver": "RUS",
     "team": "Mercedes",
     "grid": 6,
-    "p_win": 0.0143,
-    "p_podium": 0.0703,
+    "p_win": 0.0133,
+    "p_podium": 0.0723,
     "p_top10": 1.0,
     "finish": 8
    },
@@ -101,36 +135,36 @@
     "driver": "PIA",
     "team": "McLaren",
     "grid": 7,
-    "p_win": 0.0064,
-    "p_podium": 0.0305,
-    "p_top10": 0.9999,
+    "p_win": 0.0061,
+    "p_podium": 0.0321,
+    "p_top10": 0.9997,
     "finish": 7
    },
    {
     "driver": "NOR",
     "team": "McLaren",
     "grid": 8,
-    "p_win": 0.0023,
-    "p_podium": 0.0138,
-    "p_top10": 0.9997,
+    "p_win": 0.0022,
+    "p_podium": 0.0129,
+    "p_top10": 0.9978,
     "finish": 5
    },
    {
     "driver": "LAW",
     "team": "RB F1 Team",
     "grid": 10,
-    "p_win": 0.0003,
-    "p_podium": 0.0013,
-    "p_top10": 0.8859,
+    "p_win": 0.0004,
+    "p_podium": 0.0023,
+    "p_top10": 0.8926,
     "finish": 9
    },
    {
     "driver": "LIN",
     "team": "RB F1 Team",
     "grid": 9,
-    "p_win": 0.0002,
-    "p_podium": 0.0007,
-    "p_top10": 0.7666,
+    "p_win": 0.0004,
+    "p_podium": 0.0018,
+    "p_top10": 0.8614,
     "finish": 12
    },
    {
@@ -139,7 +173,7 @@
     "grid": 14,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0237,
+    "p_top10": 0.0169,
     "finish": 21
    },
    {
@@ -148,7 +182,7 @@
     "grid": 11,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0233,
+    "p_top10": 0.0145,
     "finish": 10
    },
    {
@@ -157,7 +191,7 @@
     "grid": 15,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0129,
+    "p_top10": 0.0106,
     "finish": 16
    },
    {
@@ -166,7 +200,7 @@
     "grid": 18,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0043,
+    "p_top10": 0.0033,
     "finish": 15
    },
    {
@@ -175,7 +209,7 @@
     "grid": 13,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0497,
+    "p_top10": 0.033,
     "finish": 13
    },
    {
@@ -184,7 +218,7 @@
     "grid": 12,
     "p_win": 0.0,
     "p_podium": 0.0001,
-    "p_top10": 0.1531,
+    "p_top10": 0.0918,
     "finish": 11
    },
    {
@@ -193,7 +227,7 @@
     "grid": 22,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0029,
+    "p_top10": 0.0022,
     "finish": 20
    },
    {
@@ -202,7 +236,7 @@
     "grid": 21,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0027,
+    "p_top10": 0.0026,
     "finish": 19
    },
    {
@@ -211,7 +245,7 @@
     "grid": 16,
     "p_win": 0.0,
     "p_podium": 0.0001,
-    "p_top10": 0.0444,
+    "p_top10": 0.0445,
     "finish": 22
    },
    {
@@ -220,7 +254,7 @@
     "grid": 17,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0204,
+    "p_top10": 0.019,
     "finish": 14
    },
    {
@@ -229,7 +263,7 @@
     "grid": 20,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0057,
+    "p_top10": 0.0054,
     "finish": 17
    },
    {
@@ -238,7 +272,7 @@
     "grid": 19,
     "p_win": 0.0,
     "p_podium": 0.0,
-    "p_top10": 0.0048,
+    "p_top10": 0.0047,
     "finish": 18
    }
   ]
@@ -247,34 +281,422 @@
   {
    "round": 1,
    "name": "Australian Grand Prix",
-   "winner_predicted": "RUS",
-   "winner_actual": "RUS",
+   "location": "Melbourne",
    "winner_hit": true,
    "podium_overlap": 2,
-   "brier_p1": 0.0157
+   "podium_predicted": [
+    "RUS",
+    "ANT",
+    "NOR"
+   ],
+   "podium_actual": [
+    "RUS",
+    "ANT",
+    "LEC"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "ANT": "Mercedes",
+    "NOR": "McLaren",
+    "LEC": "Ferrari"
+   }
   },
   {
    "round": 2,
    "name": "Chinese Grand Prix",
-   "winner_predicted": "RUS",
-   "winner_actual": "ANT",
+   "location": "Shanghai",
    "winner_hit": false,
    "podium_overlap": 3,
-   "brier_p1": 0.0356
+   "podium_predicted": [
+    "RUS",
+    "ANT",
+    "HAM"
+   ],
+   "podium_actual": [
+    "ANT",
+    "RUS",
+    "HAM"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "ANT": "Mercedes",
+    "HAM": "Ferrari"
+   }
+  },
+  {
+   "round": 3,
+   "name": "Japanese Grand Prix",
+   "location": "Suzuka",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "ANT",
+    "RUS",
+    "LEC"
+   ],
+   "podium_actual": [
+    "ANT",
+    "PIA",
+    "LEC"
+   ],
+   "teams": {
+    "ANT": "Mercedes",
+    "RUS": "Mercedes",
+    "LEC": "Ferrari",
+    "PIA": "McLaren"
+   }
+  },
+  {
+   "round": 4,
+   "name": "Miami Grand Prix",
+   "location": "Miami Gardens",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "ANT",
+    "NOR",
+    "LEC"
+   ],
+   "podium_actual": [
+    "ANT",
+    "NOR",
+    "PIA"
+   ],
+   "teams": {
+    "ANT": "Mercedes",
+    "NOR": "McLaren",
+    "LEC": "Ferrari",
+    "PIA": "McLaren"
+   }
+  },
+  {
+   "round": 5,
+   "name": "Canadian Grand Prix",
+   "location": "Montréal",
+   "winner_hit": false,
+   "podium_overlap": 1,
+   "podium_predicted": [
+    "RUS",
+    "NOR",
+    "ANT"
+   ],
+   "podium_actual": [
+    "ANT",
+    "HAM",
+    "VER"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "NOR": "McLaren",
+    "ANT": "Mercedes",
+    "HAM": "Ferrari",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 6,
+   "name": "Monaco Grand Prix",
+   "location": "Monte Carlo",
+   "winner_hit": false,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "VER",
+    "HAM",
+    "ANT"
+   ],
+   "podium_actual": [
+    "ANT",
+    "HAM",
+    "HAD"
+   ],
+   "teams": {
+    "VER": "Red Bull",
+    "HAM": "Ferrari",
+    "ANT": "Mercedes",
+    "HAD": "Red Bull"
+   }
+  },
+  {
+   "round": 7,
+   "name": "Barcelona Grand Prix",
+   "location": "Barcelona",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "HAM",
+    "RUS",
+    "ANT"
+   ],
+   "podium_actual": [
+    "HAM",
+    "RUS",
+    "NOR"
+   ],
+   "teams": {
+    "HAM": "Ferrari",
+    "RUS": "Mercedes",
+    "ANT": "Mercedes",
+    "NOR": "McLaren"
+   }
+  },
+  {
+   "round": 8,
+   "name": "Austrian Grand Prix",
+   "location": "Spielberg",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "RUS",
+    "ANT",
+    "HAM"
+   ],
+   "podium_actual": [
+    "RUS",
+    "VER",
+    "ANT"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "ANT": "Mercedes",
+    "HAM": "Ferrari",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 9,
+   "name": "British Grand Prix",
+   "location": "Silverstone",
+   "winner_hit": false,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "HAM",
+    "LEC",
+    "ANT"
+   ],
+   "podium_actual": [
+    "LEC",
+    "RUS",
+    "HAM"
+   ],
+   "teams": {
+    "HAM": "Ferrari",
+    "LEC": "Ferrari",
+    "ANT": "Mercedes",
+    "RUS": "Mercedes"
+   }
+  },
+  {
+   "round": 10,
+   "name": "Belgian Grand Prix",
+   "location": "Spa-Francorchamps",
+   "winner_hit": true,
+   "podium_overlap": 1,
+   "podium_predicted": [
+    "ANT",
+    "RUS",
+    "NOR"
+   ],
+   "podium_actual": [
+    "ANT",
+    "LEC",
+    "VER"
+   ],
+   "teams": {
+    "ANT": "Mercedes",
+    "RUS": "Mercedes",
+    "NOR": "McLaren",
+    "LEC": "Ferrari",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 11,
+   "name": "Hungarian Grand Prix",
+   "location": "Budapest",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "NOR",
+    "HAM",
+    "ANT"
+   ],
+   "podium_actual": [
+    "NOR",
+    "VER",
+    "ANT"
+   ],
+   "teams": {
+    "NOR": "McLaren",
+    "HAM": "Ferrari",
+    "ANT": "Mercedes",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 12,
+   "name": "Dutch Grand Prix",
+   "location": "Zandvoort",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "NOR",
+    "RUS",
+    "PIA"
+   ],
+   "podium_actual": [
+    "NOR",
+    "ANT",
+    "RUS"
+   ],
+   "teams": {
+    "NOR": "McLaren",
+    "RUS": "Mercedes",
+    "PIA": "McLaren",
+    "ANT": "Mercedes"
+   }
+  },
+  {
+   "round": 13,
+   "name": "Italian Grand Prix",
+   "location": "Monza",
+   "winner_hit": false,
+   "podium_overlap": 1,
+   "podium_predicted": [
+    "RUS",
+    "LEC",
+    "PIA"
+   ],
+   "podium_actual": [
+    "ANT",
+    "RUS",
+    "VER"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "LEC": "Ferrari",
+    "PIA": "McLaren",
+    "ANT": "Mercedes",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 14,
+   "name": "Spanish Grand Prix",
+   "location": "Madrid",
+   "winner_hit": false,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "NOR",
+    "ANT",
+    "HAM"
+   ],
+   "podium_actual": [
+    "ANT",
+    "VER",
+    "NOR"
+   ],
+   "teams": {
+    "NOR": "McLaren",
+    "ANT": "Mercedes",
+    "HAM": "Ferrari",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 15,
+   "name": "Azerbaijan Grand Prix",
+   "location": "Baku",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "RUS",
+    "LEC",
+    "HAD"
+   ],
+   "podium_actual": [
+    "RUS",
+    "VER",
+    "HAD"
+   ],
+   "teams": {
+    "RUS": "Mercedes",
+    "LEC": "Ferrari",
+    "HAD": "Red Bull",
+    "VER": "Red Bull"
+   }
+  },
+  {
+   "round": 16,
+   "name": "Bahrain Grand Prix",
+   "location": "Kuala Lumpur",
+   "winner_hit": true,
+   "podium_overlap": 3,
+   "podium_predicted": [
+    "VER",
+    "HAM",
+    "ANT"
+   ],
+   "podium_actual": [
+    "VER",
+    "ANT",
+    "HAM"
+   ],
+   "teams": {
+    "VER": "Red Bull",
+    "HAM": "Ferrari",
+    "ANT": "Mercedes"
+   }
+  },
+  {
+   "round": 17,
+   "name": "Singapore Grand Prix",
+   "location": "Marina Bay",
+   "winner_hit": true,
+   "podium_overlap": 2,
+   "podium_predicted": [
+    "VER",
+    "LEC",
+    "HAM"
+   ],
+   "podium_actual": [
+    "VER",
+    "LEC",
+    "ANT"
+   ],
+   "teams": {
+    "VER": "Red Bull",
+    "LEC": "Ferrari",
+    "HAM": "Ferrari",
+    "ANT": "Mercedes"
+   }
   },
   {
    "round": 18,
    "name": "United States Grand Prix",
-   "winner_predicted": "ANT",
-   "winner_actual": "ANT",
+   "location": "Austin",
    "winner_hit": true,
    "podium_overlap": 2,
-   "brier_p1": 0.0109
+   "podium_predicted": [
+    "ANT",
+    "VER",
+    "HAD"
+   ],
+   "podium_actual": [
+    "ANT",
+    "LEC",
+    "VER"
+   ],
+   "teams": {
+    "ANT": "Mercedes",
+    "VER": "Red Bull",
+    "HAD": "Red Bull",
+    "LEC": "Ferrari"
+   }
   }
  ],
  "record_summary": {
-  "races": 3,
-  "winners": 2,
-  "podium_overlap_avg": 2.33
+  "races": 18,
+  "winners": 12,
+  "podium_overlap_avg": 1.94
  }
 }

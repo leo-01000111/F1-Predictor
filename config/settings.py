@@ -33,12 +33,6 @@ class Settings(BaseSettings):
     data_predictions_dir: Path = ROOT_DIR / "data" / "predictions"
     models_dir: Path = ROOT_DIR / "models"
 
-    # UI configuration (env-overridable)
-    ui_density_default: str = "dense"
-    ui_enable_live_widgets: bool = False
-    ui_task_poll_seconds: int = 5
-    ui_max_visible_blocks: int = 6
-
     class Config:
         env_file = ROOT_DIR / ".env"
         env_file_encoding = "utf-8"

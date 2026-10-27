@@ -56,9 +56,6 @@ models/*.json
 cache/
 fastf1_cache/
 
-# Streamlit
-.streamlit/secrets.toml
-
 # OS
 .DS_Store
 Thumbs.db

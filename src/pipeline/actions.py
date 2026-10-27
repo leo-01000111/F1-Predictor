@@ -191,7 +191,7 @@ class PipelineActionRunner:
         podium_actual = set(actual_df[actual_df["finish_position"].isin([1, 2, 3])]["driver"].tolist())
         pred_winner = predictions[0]["driver"] if predictions else None
 
-        # Pick predicted podium per-position (same logic as dashboard cards):
+        # Pick predicted podium per position:
         #   P1 pick = driver with highest p_win
         #   P2 pick = driver with highest p_p2 (excluding P1 pick)
         #   P3 pick = driver with highest p_p3 (excluding P1 + P2 picks)
