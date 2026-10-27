@@ -43,6 +43,7 @@ from src.features.team_features import (
 )
 from src.features.weather_features import merge_weather
 from src.features.circuits import canonicalize_circuits
+from src.features.teams import canonicalize_teams
 
 ROOT = Path(__file__).parent.parent.parent
 PROCESSED_DIR = ROOT / "data" / "processed"
@@ -167,9 +168,10 @@ def build_feature_matrix(
     """
     logger.info("Building feature matrix...")
 
-    # Canonical track IDs first, so circuit history and the circuit lookups
-    # use the same keys as inference (see src/features/circuits.py).
-    df = canonicalize_circuits(race_df)
+    # Canonical track IDs and team names first, so circuit history, the circuit
+    # lookups and team features use the same keys as inference
+    # (see src/features/circuits.py and src/features/teams.py).
+    df = canonicalize_teams(canonicalize_circuits(race_df))
 
     # ------------------------------------------------------------------ #
     # 1. Driver form and championship features (from race results)

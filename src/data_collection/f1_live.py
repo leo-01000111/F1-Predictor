@@ -14,6 +14,8 @@ import pandas as pd
 import requests
 from loguru import logger
 
+from src.features.teams import canonical_team
+
 OPENF1_BASE = "https://api.openf1.org/v1"
 LONG_RUN_MIN_LAPS = 5
 FP_LAP_MIN_S = 50.0
@@ -287,7 +289,7 @@ def get_quali_results(session_key: int) -> pd.DataFrame:
         lambda n: drivers.get(n, {}).get("name_acronym", str(int(n)) if pd.notna(n) else "")
     )
     best_laps["team"] = best_laps["driver_number"].map(
-        lambda n: drivers.get(n, {}).get("team_name", "Unknown")
+        lambda n: canonical_team(drivers.get(n, {}).get("team_name", "Unknown"))
     )
 
     # Rank by best lap time — timed drivers first (NaN sorts to end automatically)
@@ -369,7 +371,7 @@ def get_practice_results(
 
         driver_info = drivers.get(driver_num, {})
         driver_abbr = driver_info.get("name_acronym", str(driver_num))
-        team = driver_info.get("team_name", "Unknown")
+        team = canonical_team(driver_info.get("team_name", "Unknown"))
 
         best_gap = np.nan
         if pd.notna(session_best):
@@ -510,6 +512,8 @@ def get_completed_season_race_results(year: int, max_round: Optional[int] = None
     """
     import fastf1
 
+    from src.data_collection.f1_historical import is_dnf
+
     rows = []
     try:
         schedule = fastf1.get_event_schedule(year, include_testing=False)
@@ -563,15 +567,12 @@ def get_completed_season_race_results(year: int, max_round: Optional[int] = None
 
         for _, r in results.iterrows():
             driver = str(r.get("Abbreviation", "")).strip()
-            team = str(r.get("TeamName", "Unknown")).strip()
+            team = canonical_team(r.get("TeamName", "Unknown"))
             grid_pos = r.get("GridPosition", None)
             finish_pos = r.get("Position", None)
             status = str(r.get("Status", "")).strip()
 
-            dnf = 1 if (
-                status.lower() not in ("finished", "") and
-                not str(finish_pos).replace(".0", "").isdigit()
-            ) else 0
+            dnf = is_dnf(status)
 
             try:
                 finish_pos_int = int(float(finish_pos)) if pd.notna(finish_pos) else None

@@ -74,6 +74,24 @@ def evaluate_race_predictions(
 
         ece_p1 = expected_calibration_error(p1_probs, group["p1"].values, n_bins=10)
 
+        # Winner log loss: -log P(actual winner), the per-race proper score
+        win_mask = group["p1"].values == 1
+        log_loss_winner = (
+            float(-np.log(max(p1_probs[win_mask][0], 1e-6))) if win_mask.any() else None
+        )
+
+        # Grid baselines: pole sitter wins, grid top 3 = podium.
+        # Grid 0 is a pit-lane start, so it counts as last.
+        grid_pole_correct = None
+        grid_podium_overlap = None
+        if "grid_position" in group.columns:
+            grid = pd.to_numeric(group["grid_position"], errors="coerce").values
+            if np.isfinite(grid).any():
+                grid = np.where(np.isfinite(grid) & (grid > 0), grid, np.inf)
+                order = np.argsort(grid, kind="stable")
+                grid_pole_correct = group.iloc[order[0]]["driver"] == actual_winner
+                grid_podium_overlap = len(set(group.iloc[order[:3]]["driver"]) & actual_podium)
+
         circuit = (
             group["circuit_key"].iloc[0] if "circuit_key" in group.columns
             else (group["circuit"].iloc[0] if "circuit" in group.columns else "unknown")
@@ -92,6 +110,9 @@ def evaluate_race_predictions(
             "ece_p1": float(ece_p1),
             "spearman_r": corr,
             "mae_position": mae,
+            "log_loss_winner": log_loss_winner,
+            "grid_pole_correct": grid_pole_correct,
+            "grid_podium_overlap": grid_podium_overlap,
         })
 
     out = pd.DataFrame(results)
@@ -125,7 +146,24 @@ def evaluate_race_predictions(
             float(out["mae_position"].dropna().mean()) if out["mae_position"].notna().any() else None
         ),
         "n_holdout_races": len(out),
+        "mean_log_loss_winner": (
+            float(out["log_loss_winner"].dropna().mean()) if out["log_loss_winner"].notna().any() else None
+        ),
     }
+
+    # Baselines the model has to beat. Same races, same grid the model sees.
+    has_grid = out["grid_pole_correct"].notna()
+    if has_grid.any():
+        baselines = {
+            "winner_accuracy_pole": float(out.loc[has_grid, "grid_pole_correct"].astype(float).mean()),
+            "podium_accuracy_grid_top3": float(out.loc[has_grid, "grid_podium_overlap"].astype(float).mean() / 3.0),
+            "n_races": int(has_grid.sum()),
+        }
+        metrics["baselines"] = baselines
+        metrics["beats_baselines"] = bool(
+            metrics["winner_accuracy"] > baselines["winner_accuracy_pole"]
+            and metrics["podium_accuracy"] > baselines["podium_accuracy_grid_top3"]
+        )
 
     _log_race_metrics(metrics)
     return metrics, out
@@ -142,3 +180,17 @@ def _log_race_metrics(metrics: dict) -> None:
         logger.info(f"Mean Spearman r : {metrics['mean_spearman_r']:.3f}")
     if metrics.get("mean_mae_position") is not None:
         logger.info(f"Mean MAE pos    : {metrics['mean_mae_position']:.2f} places")
+    if metrics.get("mean_log_loss_winner") is not None:
+        logger.info(f"Winner log loss : {metrics['mean_log_loss_winner']:.3f}")
+    b = metrics.get("baselines")
+    if b:
+        logger.info(
+            f"Baseline pole wins   : {b['winner_accuracy_pole']:.1%}  "
+            f"(model {metrics['winner_accuracy']:.1%})"
+        )
+        logger.info(
+            f"Baseline grid top 3  : {b['podium_accuracy_grid_top3']:.1%}  "
+            f"(model {metrics['podium_accuracy']:.1%})"
+        )
+        if not metrics["beats_baselines"]:
+            logger.warning("Model does NOT beat the grid baselines on this holdout")

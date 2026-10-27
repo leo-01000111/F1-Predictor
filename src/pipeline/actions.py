@@ -8,6 +8,7 @@ from typing import Any, Protocol
 import numpy as np
 import pandas as pd
 
+from src.features.teams import canonical_team
 from src.models.calibration import expected_calibration_error
 
 
@@ -169,7 +170,7 @@ class PipelineActionRunner:
         rows = []
         for _, row in results.iterrows():
             driver = str(row.get("Abbreviation", "")).strip()
-            team = str(row.get("TeamName", "Unknown")).strip()
+            team = canonical_team(row.get("TeamName", "Unknown"))
             pos = row.get("Position")
             try:
                 finish_position = int(float(pos)) if pd.notna(pos) else None

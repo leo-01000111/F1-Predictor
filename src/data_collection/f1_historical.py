@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+from src.features.teams import canonical_team
+
 ROOT = Path(__file__).parent.parent.parent
 CACHE_DIR = ROOT / "data" / "cache"
 RAW_DIR = ROOT / "data" / "raw"
@@ -71,6 +73,18 @@ def _load_session_safe(
     return None
 
 
+def is_dnf(status) -> int:
+    """1 if a race status means the driver did not finish.
+
+    Finishers are "Finished", "+N Lap(s)" and, since late 2023 in Jolpica,
+    "Lapped". An empty status is treated as unknown (0).
+    """
+    s = str(status or "").strip()
+    if s == "" or s in ("Finished", "Lapped") or s.startswith("+"):
+        return 0
+    return 1
+
+
 def _extract_race_result(session: fastf1.core.Session, year: int) -> pd.DataFrame:
     results = session.results
     if results is None or results.empty:
@@ -80,11 +94,7 @@ def _extract_race_result(session: fastf1.core.Session, year: int) -> pd.DataFram
     for _, row in results.iterrows():
         position = row.get("Position", None)
         status = row.get("Status", "")
-        dnf = int(
-            status not in ("Finished", "+1 Lap", "+2 Laps", "+3 Laps", "+4 Laps", "+5 Laps")
-            and status != ""
-            and not str(status).startswith("+")
-        )
+        dnf = is_dnf(status)
         grid = row.get("GridPosition", None)
         points = row.get("Points", 0.0)
         rows.append({
@@ -94,7 +104,7 @@ def _extract_race_result(session: fastf1.core.Session, year: int) -> pd.DataFram
             "circuit_key": session.event.EventName.lower().replace(" ", "_").replace("grand_prix", "gp"),
             "race_date": str(session.event.EventDate.date()),
             "driver": row.get("Abbreviation", ""),
-            "team": row.get("TeamName", ""),
+            "team": canonical_team(row.get("TeamName", "")),
             "grid_position": int(grid) if pd.notna(grid) else None,
             "finish_position": int(position) if pd.notna(position) else None,
             "dnf": dnf,
@@ -135,7 +145,7 @@ def _extract_quali_result(session: fastf1.core.Session, year: int) -> pd.DataFra
             "circuit": session.event.Location,
             "circuit_key": session.event.EventName.lower().replace(" ", "_").replace("grand_prix", "gp"),
             "driver": row.get("Abbreviation", ""),
-            "team": row.get("TeamName", ""),
+            "team": canonical_team(row.get("TeamName", "")),
             "quali_position": int(row.get("Position")) if pd.notna(row.get("Position")) else None,
             "quali_best_time_s": best_time,
             "quali_gap_to_pole_s": gap_to_pole,

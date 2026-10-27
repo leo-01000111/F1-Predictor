@@ -1,10 +1,17 @@
 {
-  "winner_accuracy": 0.4523809523809524,
+  "winner_accuracy": 0.40476190476190477,
   "podium_accuracy": 0.6349206349206349,
-  "brier_p1": 0.030774456708571422,
-  "mean_spearman_r": 0.6635603690196695,
-  "mean_mae_position": 3.385945470554732,
+  "brier_p1": 0.03349939280000001,
+  "mean_spearman_r": 0.6722089432125392,
+  "mean_mae_position": 3.343774793586146,
   "n_holdout_races": 42,
+  "mean_log_loss_winner": 1.494960487265488,
+  "baselines": {
+    "winner_accuracy_pole": 0.6904761904761905,
+    "podium_accuracy_grid_top3": 0.6984126984126985,
+    "n_races": 42
+  },
+  "beats_baselines": false,
   "holdout_years": [
     2025.0,
     2026.0

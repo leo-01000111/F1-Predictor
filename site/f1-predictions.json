@@ -1,8 +1,8 @@
 {
- "updated_at": "2026-10-27T19:11:16Z",
+ "updated_at": "2026-10-27T20:25:10Z",
  "season": 2026,
  "model": {
-  "trained_at": "2026-10-27T18:53:00.415228+00:00",
+  "trained_at": "2026-10-27T20:24:59.351938+00:00",
   "train_years": [
    2014,
    2025
@@ -12,41 +12,41 @@
    2026
   ],
   "holdout_races": 42,
-  "winner_accuracy": 0.4523809523809524,
+  "winner_accuracy": 0.40476190476190477,
   "podium_accuracy": 0.6349206349206349,
-  "spearman": 0.6635603690196695,
+  "spearman": 0.6722089432125392,
   "importance": [
    {
     "group": "qualifying",
-    "share": 0.553
+    "share": 0.487
    },
    {
     "group": "car",
-    "share": 0.156
+    "share": 0.206
    },
    {
     "group": "driver",
-    "share": 0.119
+    "share": 0.169
    },
    {
     "group": "championship",
-    "share": 0.072
+    "share": 0.063
    },
    {
     "group": "weather",
-    "share": 0.043
-   },
-   {
-    "group": "reliability",
     "share": 0.028
    },
    {
     "group": "circuit",
-    "share": 0.025
+    "share": 0.027
+   },
+   {
+    "group": "reliability",
+    "share": 0.015
    },
    {
     "group": "sprint",
-    "share": 0.005
+    "share": 0.004
    }
   ]
  },
@@ -88,7 +88,7 @@
    },
    {
     "driver": "VER",
-    "team": "Red Bull",
+    "team": "Red Bull Racing",
     "grid": 2,
     "p_win": 0.189,
     "p_podium": 0.755,
@@ -97,7 +97,7 @@
    },
    {
     "driver": "HAD",
-    "team": "Red Bull",
+    "team": "Red Bull Racing",
     "grid": 3,
     "p_win": 0.0853,
     "p_podium": 0.4601,
@@ -151,7 +151,7 @@
    },
    {
     "driver": "LAW",
-    "team": "RB F1 Team",
+    "team": "Racing Bulls",
     "grid": 10,
     "p_win": 0.0004,
     "p_podium": 0.0023,
@@ -160,7 +160,7 @@
    },
    {
     "driver": "LIN",
-    "team": "RB F1 Team",
+    "team": "Racing Bulls",
     "grid": 9,
     "p_win": 0.0004,
     "p_podium": 0.0018,
@@ -169,7 +169,7 @@
    },
    {
     "driver": "COL",
-    "team": "Alpine F1 Team",
+    "team": "Alpine",
     "grid": 14,
     "p_win": 0.0,
     "p_podium": 0.0,
@@ -178,7 +178,7 @@
    },
    {
     "driver": "GAS",
-    "team": "Alpine F1 Team",
+    "team": "Alpine",
     "grid": 11,
     "p_win": 0.0,
     "p_podium": 0.0,
@@ -223,7 +223,7 @@
    },
    {
     "driver": "BOT",
-    "team": "Cadillac F1 Team",
+    "team": "Cadillac",
     "grid": 22,
     "p_win": 0.0,
     "p_podium": 0.0,
@@ -232,7 +232,7 @@
    },
    {
     "driver": "PER",
-    "team": "Cadillac F1 Team",
+    "team": "Cadillac",
     "grid": 21,
     "p_win": 0.0,
     "p_podium": 0.0,
@@ -390,7 +390,7 @@
     "NOR": "McLaren",
     "ANT": "Mercedes",
     "HAM": "Ferrari",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -410,10 +410,10 @@
     "HAD"
    ],
    "teams": {
-    "VER": "Red Bull",
+    "VER": "Red Bull Racing",
     "HAM": "Ferrari",
     "ANT": "Mercedes",
-    "HAD": "Red Bull"
+    "HAD": "Red Bull Racing"
    }
   },
   {
@@ -459,7 +459,7 @@
     "RUS": "Mercedes",
     "ANT": "Mercedes",
     "HAM": "Ferrari",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -506,7 +506,7 @@
     "RUS": "Mercedes",
     "NOR": "McLaren",
     "LEC": "Ferrari",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -529,7 +529,7 @@
     "NOR": "McLaren",
     "HAM": "Ferrari",
     "ANT": "Mercedes",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -576,7 +576,7 @@
     "LEC": "Ferrari",
     "PIA": "McLaren",
     "ANT": "Mercedes",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -599,7 +599,7 @@
     "NOR": "McLaren",
     "ANT": "Mercedes",
     "HAM": "Ferrari",
-    "VER": "Red Bull"
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -621,8 +621,8 @@
    "teams": {
     "RUS": "Mercedes",
     "LEC": "Ferrari",
-    "HAD": "Red Bull",
-    "VER": "Red Bull"
+    "HAD": "Red Bull Racing",
+    "VER": "Red Bull Racing"
    }
   },
   {
@@ -642,7 +642,7 @@
     "HAM"
    ],
    "teams": {
-    "VER": "Red Bull",
+    "VER": "Red Bull Racing",
     "HAM": "Ferrari",
     "ANT": "Mercedes"
    }
@@ -664,7 +664,7 @@
     "ANT"
    ],
    "teams": {
-    "VER": "Red Bull",
+    "VER": "Red Bull Racing",
     "LEC": "Ferrari",
     "HAM": "Ferrari",
     "ANT": "Mercedes"
@@ -688,8 +688,8 @@
    ],
    "teams": {
     "ANT": "Mercedes",
-    "VER": "Red Bull",
-    "HAD": "Red Bull",
+    "VER": "Red Bull Racing",
+    "HAD": "Red Bull Racing",
     "LEC": "Ferrari"
    }
   }

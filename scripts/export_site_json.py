@@ -29,6 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
+from src.features.teams import canonical_team  # noqa: E402
+
 PRED_DIR = ROOT / "data" / "predictions"
 RES_DIR = ROOT / "data" / "results"
 MODELS_DIR = ROOT / "models"
@@ -122,8 +124,8 @@ def _podiums(res: dict) -> tuple[list[str], list[str], dict[str, str]]:
         (a for a in res.get("actual_results", []) if a.get("finish_position") and a["finish_position"] <= 3),
         key=lambda a: a["finish_position"],
     )
-    teams = {p["driver"]: p.get("team") for p in res.get("predictions", [])}
-    teams.update({a["driver"]: a.get("team") for a in res.get("actual_results", [])})
+    teams = {p["driver"]: canonical_team(p.get("team")) for p in res.get("predictions", [])}
+    teams.update({a["driver"]: canonical_team(a.get("team")) for a in res.get("actual_results", [])})
     pred_d, act_d = [p["driver"] for p in pred], [a["driver"] for a in actual]
     return pred_d, act_d, {d: teams.get(d) for d in pred_d + act_d}
 
@@ -133,7 +135,7 @@ def _driver_rows(pred: dict) -> list[dict]:
     return [
         {
             "driver": p["driver"],
-            "team": p.get("team"),
+            "team": canonical_team(p.get("team")),
             "grid": p.get("grid_position"),
             "p_win": round(float(p.get("p_win", 0)), 4),
             "p_podium": round(float(p.get("p_podium", 0)), 4),

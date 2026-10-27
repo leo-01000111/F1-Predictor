@@ -50,6 +50,7 @@ def run_inference(
     )
     from src.features.circuit_features import add_grid_conversion
     from src.features.circuits import canonical_circuit, canonicalize_circuits
+    from src.features.teams import canonicalize_teams
     from src.features.team_features import (
         add_constructor_standing,
         add_pit_stop_performance,
@@ -73,6 +74,8 @@ def run_inference(
     circuit_id = canonical_circuit(circuit_key, circuit_location, year)
     logger.info(f"Circuit '{circuit_key}' ({circuit_location}) -> canonical '{circuit_id}'")
     race_date = quali_df["race_date"].iloc[0] if "race_date" in quali_df.columns else ""
+    # OpenF1 team names differ from the stored history; match them to training
+    quali_df = canonicalize_teams(quali_df)
     drivers = quali_df["driver_abbr"].tolist()
     teams = quali_df["team"].tolist()
 
@@ -108,7 +111,7 @@ def run_inference(
     upcoming_df = pd.DataFrame(upcoming_rows)
 
     combined = pd.concat([race_df_history, upcoming_df], ignore_index=True)
-    combined = canonicalize_circuits(combined).sort_values(["year", "round"])
+    combined = canonicalize_teams(canonicalize_circuits(combined)).sort_values(["year", "round"])
 
     combined = add_driver_form(combined)
     combined = add_championship_standing(combined)
