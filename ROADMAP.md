@@ -47,11 +47,14 @@ baselines on the holdout (or we know why not).
 
 A 42-race hit rate has a 95% interval of about +-15 points. It cannot tell two models apart.
 
-- [ ] Walk-forward backtest: for each round from 2018 on, train on everything before it, predict
-      it. Hundreds of out-of-sample races instead of 42. (Retrain per season is a cheap first cut.)
-- [ ] Primary metric: per-race log loss of the full finishing order under the PL model
-      (plus winner log loss and RPS). Keep hit rates as secondary, human-readable numbers.
-- [ ] Paired bootstrap (or Diebold-Mariano) on per-race log loss when comparing two models.
+- [x] Walk-forward backtest, retrain per season (`src/training/backtest.py`, `scripts/backtest.py`):
+      test 2018-2026 (~190 races), each season trained only on earlier seasons. Per-round
+      retraining is a later refinement.
+- [x] Primary metric: per-race PL log loss of the ordered top 3 (`ll_top3`) plus winner log loss;
+      hit rates secondary. Grid scored as a probability model too (PL on grid, T fitted on past races).
+- [x] Paired bootstrap on per-race differences vs the grid.
+- [x] PL temperature fitted walk-forward (previous season's out-of-sample predictions). Phase 2.
+- [ ] Run it (user) and pick the production variant on `ll_top3` vs grid.
 - [ ] Reliability diagram for P(win) and P(podium) over the walk-forward set.
 - [ ] CI promotion gate: `post_race_retrain` / `pipeline/actions.py` currently compare winner
       accuracy. Switch to walk-forward log loss, and refuse a model that loses to the grid.

@@ -74,7 +74,7 @@ def _calendar(year: int) -> dict[int, dict]:
 FEATURE_GROUPS: dict[str, list[str]] = {
     "qualifying": ["grid_position", "quali_gap_relative", "grid_position_rel", "teammate_quali_delta",
                    "grid_penalty_places", "circuit_grid_conversion"],
-    "car": ["car_pace_delta_pct", "constructor_standing", "team_cum_points", "team_form_5", "team_pit_delta_s"],
+    "car": ["car_pace_delta_pct", "constructor_standing", "team_cum_points", "team_form_5"],
     "driver": ["driver_form_5", "driver_form_10", "driver_form_ewm", "driver_elo", "driver_experience_norm",
                "driver_wet_avg_finish"],
     "championship": ["championship_position", "cum_points_before", "championship_pressure", "round_fraction"],

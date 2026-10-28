@@ -1,0 +1,187 @@
+{
+  "all": {
+    "splits": {
+      "A": {
+        "winner_accuracy": 0.40476190476190477,
+        "podium_accuracy": 0.6349206349206349,
+        "pole_baseline": 0.6904761904761905,
+        "grid_top3_baseline": 0.6984126984126985,
+        "log_loss_T1": 1.496046781539917,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.4957249164581299
+      },
+      "B": {
+        "winner_accuracy": 0.4782608695652174,
+        "podium_accuracy": 0.6014492753623188,
+        "pole_baseline": 0.5434782608695652,
+        "grid_top3_baseline": 0.6521739130434783,
+        "log_loss_T1": 1.4728922843933105,
+        "fitted_T": 1.25,
+        "log_loss_fitted_T": 1.455053448677063
+      }
+    },
+    "pooled": {
+      "n_races": 88,
+      "winner_accuracy": 0.4431818181818182,
+      "pole_baseline": 0.6136363636363636,
+      "winner_minus_pole": -0.17045454545454544,
+      "winner_minus_pole_ci95": [
+        -0.2840909090909091,
+        -0.056818181818181816
+      ],
+      "podium_accuracy": 0.6174242424242424,
+      "grid_top3_baseline": 0.6742424242424243,
+      "pick_is_pole": 0.5340909090909091,
+      "log_loss_T1": 1.4839432943951,
+      "log_loss_fitted_T": 1.4744648310271176
+    }
+  },
+  "all_mono": {
+    "splits": {
+      "A": {
+        "winner_accuracy": 0.38095238095238093,
+        "podium_accuracy": 0.626984126984127,
+        "pole_baseline": 0.6904761904761905,
+        "grid_top3_baseline": 0.6984126984126985,
+        "log_loss_T1": 1.6120684146881104,
+        "fitted_T": 2.0,
+        "log_loss_fitted_T": 1.5928080081939697
+      },
+      "B": {
+        "winner_accuracy": 0.4782608695652174,
+        "podium_accuracy": 0.6159420289855072,
+        "pole_baseline": 0.5434782608695652,
+        "grid_top3_baseline": 0.6521739130434783,
+        "log_loss_T1": 1.3893455266952515,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.3956810235977173
+      }
+    },
+    "pooled": {
+      "n_races": 88,
+      "winner_accuracy": 0.4318181818181818,
+      "pole_baseline": 0.6136363636363636,
+      "winner_minus_pole": -0.18181818181818182,
+      "winner_minus_pole_ci95": [
+        -0.29545454545454547,
+        -0.06818181818181818
+      ],
+      "podium_accuracy": 0.6212121212121212,
+      "grid_top3_baseline": 0.6742424242424243,
+      "pick_is_pole": 0.5227272727272727,
+      "log_loss_T1": 1.4956450868736615,
+      "log_loss_fitted_T": 1.4897643571550196
+    }
+  },
+  "grid_quali": {
+    "splits": {
+      "A": {
+        "winner_accuracy": 0.6666666666666666,
+        "podium_accuracy": 0.6904761904761906,
+        "pole_baseline": 0.6904761904761905,
+        "grid_top3_baseline": 0.6984126984126985,
+        "log_loss_T1": 1.1617869138717651,
+        "fitted_T": 2.0,
+        "log_loss_fitted_T": 1.3283414840698242
+      },
+      "B": {
+        "winner_accuracy": 0.5869565217391305,
+        "podium_accuracy": 0.6594202898550724,
+        "pole_baseline": 0.5434782608695652,
+        "grid_top3_baseline": 0.6521739130434783,
+        "log_loss_T1": 1.5505881005412174,
+        "fitted_T": 2.0,
+        "log_loss_fitted_T": 1.5422194004058838
+      }
+    },
+    "pooled": {
+      "n_races": 88,
+      "winner_accuracy": 0.625,
+      "pole_baseline": 0.6136363636363636,
+      "winner_minus_pole": 0.011363636363636364,
+      "winner_minus_pole_ci95": [
+        -0.06818181818181818,
+        0.09090909090909091
+      ],
+      "podium_accuracy": 0.6742424242424243,
+      "grid_top3_baseline": 0.6742424242424243,
+      "pick_is_pole": 0.8409090909090909,
+      "log_loss_T1": 1.3650238978126152,
+      "log_loss_fitted_T": 1.4401413039727644
+    }
+  },
+  "no_reputation": {
+    "splits": {
+      "A": {
+        "winner_accuracy": 0.5238095238095238,
+        "podium_accuracy": 0.6428571428571429,
+        "pole_baseline": 0.6904761904761905,
+        "grid_top3_baseline": 0.6984126984126985,
+        "log_loss_T1": 1.2208268642425537,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.3004578351974487
+      },
+      "B": {
+        "winner_accuracy": 0.5217391304347826,
+        "podium_accuracy": 0.6231884057971014,
+        "pole_baseline": 0.5434782608695652,
+        "grid_top3_baseline": 0.6521739130434783,
+        "log_loss_T1": 1.5270912647247314,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.4825677871704102
+      }
+    },
+    "pooled": {
+      "n_races": 88,
+      "winner_accuracy": 0.5227272727272727,
+      "pole_baseline": 0.6136363636363636,
+      "winner_minus_pole": -0.09090909090909091,
+      "winner_minus_pole_ci95": [
+        -0.19318181818181818,
+        0.011363636363636364
+      ],
+      "podium_accuracy": 0.6325757575757576,
+      "grid_top3_baseline": 0.6742424242424243,
+      "pick_is_pole": 0.6363636363636364,
+      "log_loss_T1": 1.3809196190400557,
+      "log_loss_fitted_T": 1.3956516737287694
+    }
+  },
+  "no_pit": {
+    "splits": {
+      "A": {
+        "winner_accuracy": 0.5714285714285714,
+        "podium_accuracy": 0.6428571428571429,
+        "pole_baseline": 0.6904761904761905,
+        "grid_top3_baseline": 0.6984126984126985,
+        "log_loss_T1": 1.2815184593200684,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.3554553985595703
+      },
+      "B": {
+        "winner_accuracy": 0.5,
+        "podium_accuracy": 0.6159420289855072,
+        "pole_baseline": 0.5434782608695652,
+        "grid_top3_baseline": 0.6521739130434783,
+        "log_loss_T1": 1.3024863004684448,
+        "fitted_T": 1.5,
+        "log_loss_fitted_T": 1.3453500270843506
+      }
+    },
+    "pooled": {
+      "n_races": 88,
+      "winner_accuracy": 0.5340909090909091,
+      "pole_baseline": 0.6136363636363636,
+      "winner_minus_pole": -0.07954545454545454,
+      "winner_minus_pole_ci95": [
+        -0.18181818181818182,
+        0.022727272727272728
+      ],
+      "podium_accuracy": 0.6287878787878788,
+      "grid_top3_baseline": 0.6742424242424243,
+      "pick_is_pole": 0.6022727272727273,
+      "log_loss_T1": 1.292478921738538,
+      "log_loss_fitted_T": 1.3501730452884326
+    }
+  }
+}

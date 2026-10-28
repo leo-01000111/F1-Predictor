@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-27T20:24:59.351938+00:00",
+  "generated_at": "2026-10-28T16:27:40.117414+00:00",
   "model_family": "xgb_v2",
   "model_artifact": "xgb_race.pkl",
   "calibrator_artifact": null,
@@ -24,9 +24,9 @@
     2025,
     2026
   ],
-  "winner_accuracy_holdout": 0.40476190476190477,
+  "winner_accuracy_holdout": 0.38095238095238093,
   "source": "quick_train.py",
-  "feature_count": 34,
+  "feature_count": 33,
   "feature_cols": [
     "grid_position",
     "quali_gap_relative",
@@ -59,7 +59,6 @@
     "championship_pressure",
     "team_form_5",
     "grid_penalty_places",
-    "team_pit_delta_s",
     "sprint_position_rel",
     "driver_experience_norm"
   ]

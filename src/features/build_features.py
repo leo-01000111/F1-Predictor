@@ -43,6 +43,7 @@ from src.features.team_features import (
 )
 from src.features.weather_features import merge_weather
 from src.features.circuits import canonicalize_circuits
+from src.features.strength_ratings import add_strength_ratings
 from src.features.teams import canonicalize_teams
 
 ROOT = Path(__file__).parent.parent.parent
@@ -137,8 +138,9 @@ FEATURE_COLS = [
     "team_form_5",              # team's rolling best finish, last 5 races
     # Grid penalty
     "grid_penalty_places",      # max(0, grid_position - quali_position): places dropped due to penalties
-    # Pit stop performance
-    "team_pit_delta_s",         # team median pit time - field median (negative = faster)
+    # team_pit_delta_s removed 2026-10-27: biggest push away from the pole sitter
+    # in holdout picks; dropping it gave +9 pp winner hit rate and the best log loss
+    # (scripts/grid_diagnostics.py). Still computed, not used by the model.
     # Sprint result
     "sprint_position_rel",      # sprint_position / n_starters (0.5 = neutral for non-sprint weekends)
     # Driver experience / rookie penalty
@@ -172,6 +174,10 @@ def build_feature_matrix(
     # lookups and team features use the same keys as inference
     # (see src/features/circuits.py and src/features/teams.py).
     df = canonicalize_teams(canonicalize_circuits(race_df))
+
+    # Driver + team strength ratings (Phase 3). Computed as extra columns;
+    # not in FEATURE_COLS until the backtest shows they help.
+    df = add_strength_ratings(df)
 
     # ------------------------------------------------------------------ #
     # 1. Driver form and championship features (from race results)

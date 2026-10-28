@@ -155,7 +155,7 @@ python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
 ## Model
 
 ```
-features (35 columns) -> XGBoost regressor -> predicted finish position per driver
+features (33 columns) -> XGBoost regressor -> predicted finish position per driver
                       -> Plackett-Luce simulation -> P[driver, position] matrix
                       -> p_win, p_p2, p_p3, p_podium, p_top6, p_top10
 ```
@@ -168,7 +168,7 @@ features (35 columns) -> XGBoost regressor -> predicted finish position per driv
 
 ## Features
 
-The 34 model inputs are listed in `FEATURE_COLS` in `src/features/build_features.py`. All rolling and history features use only races before the one being predicted. Missing values are filled with the column median.
+The 33 model inputs are listed in `FEATURE_COLS` in `src/features/build_features.py`. All rolling and history features use only races before the one being predicted. Missing values are filled with the column median.
 
 | Group | Features |
 |---|---|
@@ -179,7 +179,7 @@ The 34 model inputs are listed in `FEATURE_COLS` in `src/features/build_features
 | Circuit | `circuit_avg_finish`, `circuit_podiums`, `circuit_appearances`, `is_street_circuit`, `circuit_safety_car_rate` |
 | Reliability | `dnf_rate`, `team_reliability_rate` |
 | Championship | `championship_position`, `cum_points_before`, `championship_pressure`, `round_fraction` |
-| Constructor | `constructor_standing`, `team_cum_points`, `team_form_5`, `team_pit_delta_s` |
+| Constructor | `constructor_standing`, `team_cum_points`, `team_form_5` |
 | Weather | `temp_c_mean`, `precip_mm_total`, `windspeed_ms_mean`, `humidity_pct_mean`, `is_wet_race` |
 | Sprint | `sprint_position_rel` |
 
