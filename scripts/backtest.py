@@ -19,6 +19,7 @@ Variants:
   ndcg_<v>        XGBRanker (NDCG, top-weighted) on variant <v>'s columns
   finishers_ranker  Phase 3 stage 2 alone: production ranker trained on finishers only
   two_stage       Phase 3: finishers-only ranker + finish-probability model, combined
+  two_stage_h<N>  two_stage with exponential recency weights, N-year half-life
 
 Usage:
     python scripts/backtest.py                       # all variants, test 2018-2026
@@ -104,6 +105,10 @@ def main() -> None:
             races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS, use_finish_model=False), years, name))
         elif name == "two_stage":
             races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS), years, name))
+        elif name.startswith("two_stage_h"):
+            # two_stage_h<N>: exponential recency weights with an N-year half-life
+            races.append(walk_forward(
+                fm, make_two_stage_predict(FEATURE_COLS, half_life=float(name[11:])), years, name))
         elif name.startswith("rank_"):
             # rank_<variant> / ndcg_... : XGBRanker on that variant's columns
             races.append(walk_forward(fm, make_ranker_predict(VARIANT_COLS[name[5:]]), years, name))

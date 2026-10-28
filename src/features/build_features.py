@@ -33,7 +33,7 @@ from src.features.driver_features import (
     add_driver_experience,
     season_length,
 )
-from src.features.circuit_features import add_grid_conversion
+from src.features.circuit_features import add_grid_conversion, add_overtaking_index
 from src.features.team_features import (
     add_constructor_standing,
     add_team_reliability,
@@ -190,6 +190,7 @@ def build_feature_matrix(
     df = add_championship_pressure(df)
     df = add_driver_experience(df)
     df = add_grid_conversion(df)
+    df = add_overtaking_index(df)   # race randomness in the simulation, not a ranker input
 
     # Team features
     df = add_constructor_standing(df)

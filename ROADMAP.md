@@ -76,34 +76,41 @@ Our probabilities come from a hand-set transform, so they are uncalibrated by co
       Pairwise ranking objective was no better than the regressor (5.267).
 - [ ] Remove isotonic-calibrator leftovers once PL temperature replaces them.
 
-## Phase 3: structural model
+## Phase 3: structural model (closed 2026-10-28)
 
 What the F1 literature agrees on: the car explains ~85-88% of results, constructor strength drifts
 quickly, driver skill is stable, and about a quarter of starts end in a DNF.
 
-- [~] Built `src/features/strength_ratings.py` (PL-gradient driver + team ratings, team reset at
-      regulation changes; -1.525 one-race-ahead log-lik per finisher vs -1.950 uniform). Computed
-      in training and inference. As extra inputs they did NOT help (regressor: -0.128 vs -0.135;
-      ranker: -0.361 vs -0.435 vs grid), so not in FEATURE_COLS. Next: use them as the
-      standalone model to blend, or as the prior for rookies only.
-- [ ] Latent strengths: driver + team-season ratings updated race by race (Powell's generalised Elo
-      for PL is the cheap version; a Kalman / state-space model like Lindner et al. 2026 the full one).
-      Quali gaps update team pace fastest. Start as features for XGBoost, then as a standalone model.
-- [ ] Regulation resets (2014, 2017, 2022, 2026): inflate team-rating uncertainty, keep driver skill.
-- [ ] Shrinkage: rookies and new teams start at a prior (team mean / reset distribution) with wide
-      uncertainty instead of "missing form".
-- [x] Two-stage DNF (production since 2026-10-28, `TwoStageRaceModel`): logistic P(finish) on
+Every item was judged on the walk-forward backtest (2018-2026, 191 races, top-3 log loss, 95%
+paired bootstrap) and ships only if it helps. One shipped; the rest are built, tested and kept.
+
+- [x] **Two-stage model, SHIPPED** (`TwoStageRaceModel`, production): logistic P(finish) on
       reliability, circuit, grid and weather features; NDCG ranker on finishers only; combined by
-      simulation (exact likelihood for scoring). Walk-forward 191 races, top-3 log loss 4.648 vs
-      4.861 for the v3 ranker and 5.296 for the grid. The finishers-only ranker alone gave nothing
-      (4.888): the gain is from P(finish). Holdout 2025-26: winner 64.3%, podium 70.6% (grid 69.8%).
-- [ ] Safety-car shock in the simulation (random reshuffle, stronger at high-SC circuits).
-- [ ] Result-level Monte Carlo: sample DNFs, a safety-car shock that reshuffles order, and race pace
-      as noise around grid scaled by a circuit overtaking index (per-circuit Spearman grid vs finish).
-      No lap data needed.
-- [ ] Replace linear recency weights (0.65-1.35) with an exponential half-life tuned on log loss.
-- [ ] Ensembling: XGB-only until a blend wins on walk-forward log loss. If blending, use a
-      constrained log-pool with few weights shrunk toward equal (the old stack put 1.8x on the NN).
+      simulation (exact likelihood for scoring). Top-3 log loss 4.648 vs 4.861 for the v3 ranker
+      (-0.225 [-0.351, -0.114]) and 5.296 for the grid. The finishers-only ranker alone gave
+      nothing (4.888): the gain is from P(finish). Holdout 2025-26: winner 64.3%, podium 70.6%.
+- [x] Driver + team strength ratings (`src/features/strength_ratings.py`): PL-gradient updates,
+      team reset at regulation changes (2014, 2017, 2022, 2026), driver skill carried over, rookies
+      start below average. Real signal (-1.525 one-race-ahead log-lik per finisher vs -1.950).
+      Not shipped: as ranker inputs no gain (-0.361 vs -0.435 vs grid); as a blend after the model
+      (`race_calibration.py`, weight refitted per season) top-3 -0.036 [-0.091, +0.017], winner
+      log loss -0.064 [-0.090, -0.036] but the weight bounces 0-1 and fits to 0 for 2025-26;
+      with a fixed weight 0.5: top-3 -0.021 [-0.075, +0.036], winner hit drops to 51.8%.
+- [x] Safety-car shock (`race_calibration.py`: mixture with a flatter order, probability scaled by
+      the circuit's SC rate). Not shipped: -0.031 [-0.092, +0.014]; the fit picks no shock for 2026.
+- [x] Circuit overtaking index (`add_overtaking_index`, leak-free per-circuit grid-vs-finish
+      Spearman, computed in training and inference) used to scale each race's randomness.
+      Not shipped: +0.003 [-0.026, +0.035].
+- [x] Exponential recency half-life (`compute_recency_sample_weight(half_life=)`), 2/4/8 years.
+      Not shipped: best -0.027 [-0.064, +0.011] (8 years). Linear 0.65-1.35 stays.
+- [x] Ensembling: covered by the rating blend (the constrained 2-weight log-pool). All three
+      calibration pieces together overfit: +0.015 [-0.091, +0.140].
+- [ ] Not attempted: a full Kalman / state-space strength model (Lindner et al. 2026) with
+      uncertainty per rating. The cheap version above did not help as an input, so this is low
+      priority until Phase 4 gives a stronger benchmark.
+
+Tools: `scripts/backtest.py` (model variants), `scripts/calibration_backtest.py` (calibration
+variants on cached two-stage predictions).
 
 ## Phase 4: the betting market
 

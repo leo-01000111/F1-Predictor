@@ -1,0 +1,472 @@
+{
+  "base": {
+    "ll_top3": 4.657935845067378,
+    "ll_winner": 1.2866782936608203,
+    "winner_accuracy": 0.5445026178010471,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 0.783,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2021": {
+        "temperature": 1.044,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2022": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2023": {
+        "temperature": 0.711,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 0.783,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 0.949,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.646,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    }
+  },
+  "overtaking": {
+    "ll_top3": 4.661374512802944,
+    "ll_winner": 1.2666479723934965,
+    "winner_accuracy": 0.5445026178010471,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": -0.1,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.2,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2021": {
+        "temperature": 1.044,
+        "rating_weight": 0.0,
+        "overtaking_slope": -0.1,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2022": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2023": {
+        "temperature": 0.711,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 0.783,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.1,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.587,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.2,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    },
+    "ll_top3_minus_base": [
+      0.0034386677355658524,
+      -0.02575724788037492,
+      0.03489718788046995
+    ],
+    "ll_winner_minus_base": [
+      -0.02003032126732337,
+      -0.04249939888712527,
+      -0.002483628373575231
+    ]
+  },
+  "safety_car": {
+    "ll_top3": 4.626643892064063,
+    "ll_winner": 1.2782769461014436,
+    "winner_accuracy": 0.5445026178010471,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 0.646,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.25
+      },
+      "2021": {
+        "temperature": 0.862,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.25
+      },
+      "2022": {
+        "temperature": 0.646,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.25
+      },
+      "2023": {
+        "temperature": 0.711,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 0.783,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 0.783,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.646,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    },
+    "ll_top3_minus_base": [
+      -0.03129195300331492,
+      -0.09200176943660712,
+      0.013921966786670193
+    ],
+    "ll_winner_minus_base": [
+      -0.008401347559376502,
+      -0.03133131368796978,
+      0.00751213317168091
+    ]
+  },
+  "rating": {
+    "ll_top3": 4.621657774568686,
+    "ll_winner": 1.222898857769812,
+    "winner_accuracy": 0.5602094240837696,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 0.949,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 0.949,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2021": {
+        "temperature": 1.265,
+        "rating_weight": 1.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2022": {
+        "temperature": 0.949,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2023": {
+        "temperature": 0.783,
+        "rating_weight": 0.75,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 0.862,
+        "rating_weight": 0.25,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 0.949,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.646,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    },
+    "ll_top3_minus_base": [
+      -0.03627807049869183,
+      -0.09058249070306643,
+      0.016904643949878107
+    ],
+    "ll_winner_minus_base": [
+      -0.06377943589100812,
+      -0.0904112033625104,
+      -0.036172747787575094
+    ]
+  },
+  "all": {
+    "ll_top3": 4.673250266031105,
+    "ll_winner": 1.218064084074164,
+    "winner_accuracy": 0.5654450261780105,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 0.949,
+        "rating_weight": 0.25,
+        "overtaking_slope": -0.1,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 0.862,
+        "rating_weight": 1.0,
+        "overtaking_slope": 0.2,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.25
+      },
+      "2021": {
+        "temperature": 1.149,
+        "rating_weight": 1.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.25
+      },
+      "2022": {
+        "temperature": 0.711,
+        "rating_weight": 1.0,
+        "overtaking_slope": 0.0,
+        "sc_scale": 2.0,
+        "sc_flatten": 0.25
+      },
+      "2023": {
+        "temperature": 0.783,
+        "rating_weight": 0.75,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 0.862,
+        "rating_weight": 0.25,
+        "overtaking_slope": -0.1,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 0.862,
+        "rating_weight": 0.25,
+        "overtaking_slope": 0.1,
+        "sc_scale": 1.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.587,
+        "rating_weight": 0.0,
+        "overtaking_slope": 0.2,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    },
+    "ll_top3_minus_base": [
+      0.015314420963727517,
+      -0.09142231127140485,
+      0.14004075618496012
+    ],
+    "ll_winner_minus_base": [
+      -0.06861420958665569,
+      -0.10838829198361322,
+      -0.026270508416372344
+    ]
+  },
+  "rating_fixed": {
+    "ll_top3": 4.636897527170442,
+    "ll_winner": 1.259248405163567,
+    "winner_accuracy": 0.518324607329843,
+    "params_by_season": {
+      "2018": {
+        "temperature": 1.0,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2019": {
+        "temperature": 1.044,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2020": {
+        "temperature": 1.0,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2021": {
+        "temperature": 1.265,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2022": {
+        "temperature": 1.0,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2023": {
+        "temperature": 0.783,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2024": {
+        "temperature": 1.0,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2025": {
+        "temperature": 1.149,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      },
+      "2026": {
+        "temperature": 0.862,
+        "rating_weight": 0.5,
+        "overtaking_slope": 0.0,
+        "sc_scale": 0.0,
+        "sc_flatten": 0.5
+      }
+    },
+    "ll_top3_minus_base": [
+      -0.021038317896935364,
+      -0.0753368684400626,
+      0.036378583807232016
+    ],
+    "ll_winner_minus_base": [
+      -0.02742988849725309,
+      -0.056780200705900744,
+      0.004159777741055925
+    ]
+  }
+}

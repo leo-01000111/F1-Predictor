@@ -48,7 +48,7 @@ def run_inference(
         add_championship_pressure,
         add_driver_experience,
     )
-    from src.features.circuit_features import add_grid_conversion
+    from src.features.circuit_features import add_grid_conversion, add_overtaking_index
     from src.features.circuits import canonical_circuit, canonicalize_circuits
     from src.features.strength_ratings import add_strength_ratings
     from src.features.teams import canonicalize_teams
@@ -124,6 +124,7 @@ def run_inference(
     combined = add_championship_pressure(combined)
     combined = add_driver_experience(combined)
     combined = add_grid_conversion(combined)
+    combined = add_overtaking_index(combined)
     combined = add_constructor_standing(combined)
     combined = add_team_reliability(combined)
     combined = add_team_rolling_form(combined)

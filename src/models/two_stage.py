@@ -62,7 +62,14 @@ def top_k_nll(pred: np.ndarray, q: np.ndarray, order: list[int], temperature: fl
     P = prod_k q_k * E_S[ prod_j w_{o_j} / (W_S + sum_{m>=j} w_{o_m}) ], where S is
     the random set of other finishers (each other car finishes with prob q).
     """
-    w = np.exp(-(np.asarray(pred, float) - np.min(pred)) / temperature)
+    return top_k_nll_logw(-np.asarray(pred, float) / temperature, q, order, n_samples, seed)
+
+
+def top_k_nll_logw(s: np.ndarray, q: np.ndarray, order: list[int],
+                   n_samples: int = N_SUBSET_SAMPLES, seed: int = 0) -> float:
+    """top_k_nll with Plackett-Luce log-strengths s given directly."""
+    s = np.asarray(s, float)
+    w = np.exp(s - s.max())
     q = np.clip(np.asarray(q, float), 1e-4, 1 - 1e-4)
     order = list(order)
     others = np.setdiff1d(np.arange(len(w)), order)
@@ -79,10 +86,21 @@ def top_k_nll(pred: np.ndarray, q: np.ndarray, order: list[int], temperature: fl
 def simulate(pred: np.ndarray, q: np.ndarray, temperature: float,
              n_sims: int = 10_000, seed: Optional[int] = None) -> np.ndarray:
     """Position probability matrix [driver, position] from the two-stage model."""
-    pred = np.asarray(pred, float)
-    n = len(pred)
+    return simulate_logw(-np.asarray(pred, float) / temperature, q, n_sims=n_sims, seed=seed)
+
+
+def simulate_logw(s: np.ndarray, q: np.ndarray, n_sims: int = 10_000, seed: Optional[int] = None,
+                  s_alt: Optional[np.ndarray] = None, p_alt: float = 0.0) -> np.ndarray:
+    """simulate() with log-strengths s. With s_alt, a share p_alt of the races
+    use s_alt instead (e.g. a safety-car race with a flatter order)."""
+    s = np.asarray(s, float)
+    n = len(s)
     rng = np.random.default_rng(seed)
-    scores = -pred / temperature + rng.gumbel(size=(n_sims, n))
+    base = np.broadcast_to(s, (n_sims, n))
+    if s_alt is not None and p_alt > 0:
+        alt = rng.random(n_sims) < p_alt
+        base = np.where(alt[:, None], np.asarray(s_alt, float), base)
+    scores = base + rng.gumbel(size=(n_sims, n))
     finished = rng.random((n_sims, n)) < np.asarray(q, float)
     # Retired cars rank behind all finishers, in random order among themselves
     scores = np.where(finished, scores, -1e9 + rng.random((n_sims, n)))

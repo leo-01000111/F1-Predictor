@@ -145,18 +145,20 @@ def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> Pr
     return _predict
 
 
-def make_two_stage_predict(cols: list[str], use_finish_model: bool = True) -> PredictFn:
+def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
+                           half_life: Optional[float] = None) -> PredictFn:
     """Phase 3: pace ranker trained on finishers only (+ finish model for P(finish)).
 
     use_finish_model=False isolates stage 2: the finishers-only ranker scored as if
-    every car finishes.
+    every car finishes. half_life: exponential recency weights (years) instead of
+    the default linear 0.65-1.35.
     """
     from src.models.xgb_model import TwoStageRaceModel
 
     def _predict(train: pd.DataFrame, test: pd.DataFrame):
         model = TwoStageRaceModel()
         model.fit(train[cols], train["target_position"].values,
-                  sample_weight=compute_recency_sample_weight(train["year"].values),
+                  sample_weight=compute_recency_sample_weight(train["year"].values, half_life=half_life),
                   qid=(train["year"] * 100 + train["round"]).to_numpy(),
                   dnf=pd.to_numeric(train["dnf"], errors="coerce").fillna(0).to_numpy())
         pred = model.predict(test[cols])

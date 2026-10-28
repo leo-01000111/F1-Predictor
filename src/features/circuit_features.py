@@ -66,3 +66,50 @@ def add_grid_conversion(race_df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.drop(columns=["_grid_bin", "_finish"])
     return df
+
+
+def add_overtaking_index(race_df: pd.DataFrame, window: int = 8) -> pd.DataFrame:
+    """
+    How much the finishing order departs from the grid at this circuit.
+
+    Per race: Spearman correlation of grid vs finish among classified finishers
+    (pit-lane starts excluded). Per circuit: mean over its previous `window`
+    races, earlier races only; falls back to the mean over all earlier races.
+
+    Feature: circuit_overtaking = 1 - mean correlation. Near 0: the order follows
+    the grid (Monaco); higher: more reshuffling. Used to scale race randomness
+    in the two-stage simulation (Phase 3), not as a ranker input.
+    """
+    df = race_df.copy()
+    grid = pd.to_numeric(df["grid_position"], errors="coerce")
+    finish = pd.to_numeric(df["finish_position"], errors="coerce")
+    dnf = pd.to_numeric(df.get("dnf", 0), errors="coerce").fillna(0)
+    ok = (grid > 0) & finish.notna() & (dnf == 0)
+
+    def _rho(g: pd.DataFrame) -> float:
+        if len(g) < 5:
+            return np.nan
+        return float(g["_g"].rank().corr(g["_f"].rank()))
+
+    rho = (
+        df.assign(_g=grid, _f=finish)[ok]
+        .groupby(["circuit_key", "year", "round"])[["_g", "_f"]]
+        .apply(_rho)
+        .rename("rho")
+    )
+    # Every race, with or without a result (rho NaN), in time order. Rolling and
+    # expanding means skip NaN, and shift(1) keeps each race out of its own value.
+    races = (
+        df[["circuit_key", "year", "round"]].drop_duplicates()
+        .merge(rho.reset_index(), how="left")
+        .sort_values(["year", "round"], kind="stable")
+        .reset_index(drop=True)
+    )
+    circuit_prior = races.groupby("circuit_key")["rho"].transform(
+        lambda s: s.shift(1).rolling(window, min_periods=1).mean()
+    )
+    overall_prior = races["rho"].shift(1).expanding().mean()
+    races["circuit_overtaking"] = 1 - circuit_prior.fillna(overall_prior).fillna(0.75)
+
+    return df.merge(races[["circuit_key", "year", "round", "circuit_overtaking"]],
+                    on=["circuit_key", "year", "round"], how="left")

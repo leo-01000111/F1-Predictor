@@ -11,15 +11,24 @@ def compute_recency_sample_weight(
     *,
     min_weight: float = 0.65,
     max_weight: float = 1.35,
+    half_life: float | None = None,
 ) -> np.ndarray:
     """
     Compute monotonic recency weights by season.
 
-    Oldest season gets min_weight, most recent gets max_weight, with linear interpolation.
+    Default: oldest season gets min_weight, most recent gets max_weight, with
+    linear interpolation. With half_life (years), weights are exponential
+    instead: a season counts half as much for every half_life years before the
+    most recent one. Both are normalised to mean 1.
     """
     years = np.asarray(years)
     if years.size == 0:
         return np.array([], dtype=float)
+
+    if half_life is not None:
+        y = years.astype(float)
+        weights = 0.5 ** ((y.max() - y) / half_life)
+        return weights / weights.mean()
 
     uniq = sorted({int(y) for y in years.tolist()})
     if len(uniq) <= 1:
