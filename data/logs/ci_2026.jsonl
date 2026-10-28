@@ -1,0 +1,6 @@
+{"ts": "2026-10-28T19:05:48Z", "kind": "tick_start", "run_id": "40751075368", "runner": "github", "event": "workflow_dispatch", "cron": null, "sha": "fef7d1b", "simulated_now": null, "cron_delay_min": null, "dry_run": false}
+{"ts": "2026-10-28T19:05:49Z", "kind": "decision", "run_id": "40751075368", "runner": "github", "step": "ingest", "msg": "nothing to do (18 2026 rounds in race_results)"}
+{"ts": "2026-10-28T19:05:49Z", "kind": "decision", "run_id": "40751075368", "runner": "github", "step": "predict", "msg": "R19 Mexico City Grand Prix waits for qualifying (ready 2026-10-31 22:45 UTC)", "round": 19, "ready": "2026-10-31 22:45:00+00:00", "hours_to_race": 96.9}
+{"ts": "2026-10-28T19:05:51Z", "kind": "step", "run_id": "40751075368", "runner": "github", "step": "export", "cmd": "scripts/export_site_json.py --year 2026", "started": "2026-10-28T19:05:49Z", "exit_code": 0, "seconds": 1.5, "tail": ["2026-10-28 19:05:50.739 | INFO     | src.models.xgb_model:load:161 - Loaded XGBRacePredictor <- /home/runner/work/F1-Predictor/F1-Predictor/models/xgb_race.pkl", "site/f1-predictions.json unchanged"]}
+{"ts": "2026-10-28T19:05:51Z", "kind": "data", "run_id": "40751075368", "runner": "github", "what": "site_json", "changed": false}
+{"ts": "2026-10-28T19:05:51Z", "kind": "tick_end", "run_id": "40751075368", "runner": "github", "ok": true, "seconds": 2.3}
