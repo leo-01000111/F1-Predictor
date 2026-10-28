@@ -1,0 +1,254 @@
+{
+  "year": 2026,
+  "after_round": 18,
+  "rounds_total": 23,
+  "races_left": 5,
+  "generated_at": "2026-10-28T18:26:01Z",
+  "method": "two_stage_prequali, team_sigma=0.8, n_sims=20000",
+  "drivers": [
+    {
+      "driver": "ANT",
+      "team": "Mercedes",
+      "points": 365.0,
+      "expected_points": 429.6,
+      "p_champion": 1.0,
+      "p_top3": 1.0
+    },
+    {
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "points": 236.0,
+      "expected_points": 322.3,
+      "p_champion": 0.0,
+      "p_top3": 0.8448
+    },
+    {
+      "driver": "HAM",
+      "team": "Ferrari",
+      "points": 241.0,
+      "expected_points": 297.6,
+      "p_champion": 0.0,
+      "p_top3": 0.4727
+    },
+    {
+      "driver": "LEC",
+      "team": "Ferrari",
+      "points": 233.0,
+      "expected_points": 289.5,
+      "p_champion": 0.0,
+      "p_top3": 0.2907
+    },
+    {
+      "driver": "RUS",
+      "team": "Mercedes",
+      "points": 242.0,
+      "expected_points": 288.7,
+      "p_champion": 0.0,
+      "p_top3": 0.3222
+    },
+    {
+      "driver": "NOR",
+      "team": "McLaren",
+      "points": 211.0,
+      "expected_points": 264.4,
+      "p_champion": 0.0,
+      "p_top3": 0.0696
+    },
+    {
+      "driver": "PIA",
+      "team": "McLaren",
+      "points": 144.0,
+      "expected_points": 178.5,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "HAD",
+      "team": "Red Bull Racing",
+      "points": 105.0,
+      "expected_points": 141.4,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "LAW",
+      "team": "Racing Bulls",
+      "points": 77.0,
+      "expected_points": 91.7,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "GAS",
+      "team": "Alpine",
+      "points": 42.0,
+      "expected_points": 48.5,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "LIN",
+      "team": "Racing Bulls",
+      "points": 38.0,
+      "expected_points": 46.1,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "COL",
+      "team": "Alpine",
+      "points": 27.0,
+      "expected_points": 31.5,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "BEA",
+      "team": "Haas F1 Team",
+      "points": 23.0,
+      "expected_points": 27.6,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "HUL",
+      "team": "Audi",
+      "points": 13.0,
+      "expected_points": 19.3,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "BOR",
+      "team": "Audi",
+      "points": 10.0,
+      "expected_points": 13.5,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "OCO",
+      "team": "Haas F1 Team",
+      "points": 7.0,
+      "expected_points": 11.3,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "SAI",
+      "team": "Williams",
+      "points": 7.0,
+      "expected_points": 10.4,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "points": 7.0,
+      "expected_points": 9.9,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "ALB",
+      "team": "Williams",
+      "points": 5.0,
+      "expected_points": 7.9,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "PER",
+      "team": "Cadillac",
+      "points": 0.0,
+      "expected_points": 3.0,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "BOT",
+      "team": "Cadillac",
+      "points": 0.0,
+      "expected_points": 2.6,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    },
+    {
+      "driver": "STR",
+      "team": "Aston Martin",
+      "points": 0.0,
+      "expected_points": 2.6,
+      "p_champion": 0.0,
+      "p_top3": 0.0
+    }
+  ],
+  "teams": [
+    {
+      "team": "Mercedes",
+      "points": 607.0,
+      "expected_points": 718.3,
+      "p_champion": 0.9974
+    },
+    {
+      "team": "Ferrari",
+      "points": 474.0,
+      "expected_points": 587.1,
+      "p_champion": 0.0026
+    },
+    {
+      "team": "Red Bull Racing",
+      "points": 355.0,
+      "expected_points": 477.7,
+      "p_champion": 0.0
+    },
+    {
+      "team": "McLaren",
+      "points": 355.0,
+      "expected_points": 443.0,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Racing Bulls",
+      "points": 102.0,
+      "expected_points": 124.8,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Alpine",
+      "points": 69.0,
+      "expected_points": 80.0,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Haas F1 Team",
+      "points": 30.0,
+      "expected_points": 39.0,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Audi",
+      "points": 23.0,
+      "expected_points": 32.8,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Williams",
+      "points": 12.0,
+      "expected_points": 18.4,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Aston Martin",
+      "points": 7.0,
+      "expected_points": 12.5,
+      "p_champion": 0.0
+    },
+    {
+      "team": "Cadillac",
+      "points": 0.0,
+      "expected_points": 5.5,
+      "p_champion": 0.0
+    }
+  ]
+}

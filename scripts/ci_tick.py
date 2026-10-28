@@ -9,7 +9,8 @@ than needed is harmless.
               race_results.parquet: collect race + quali, weather, pit stops
               and sprints for the season, Kalshi market prices (logged only),
               record the result against the
-              prediction (if one was made), then retrain with quick_train.
+              prediction (if one was made), retrain with quick_train, then
+              update the championship odds (title_odds).
   2. predict  Qualifying for the next race ended >= QUALI_DELAY ago, the race
               has not started, and there is no prediction file: run
               race_weekend_inference.
@@ -118,6 +119,8 @@ def ingest(year: int, done_races: list[dict], dry_run: bool) -> bool:
             ok &= _run(["scripts/update_race_result.py", "--year", y, "--round", str(rnd)], dry_run)
 
     ok &= _run(["scripts/quick_train.py"], dry_run)
+    # Championship odds from the new standings (Phase 5)
+    ok &= _run(["scripts/title_odds.py", "--year", y], dry_run)
     return ok
 
 

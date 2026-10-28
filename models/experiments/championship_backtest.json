@@ -1,0 +1,49 @@
+{
+  "best": "model_s0.8",
+  "equal_cars": {
+    "ll_driver": 0.3752114695361942,
+    "ll_team": 0.3802815878703843,
+    "p_champion_driver": 0.7494796874999999,
+    "p_champion_team": 0.8178359374999999
+  },
+  "model_s0.0": {
+    "ll_driver": 0.41808248300236517,
+    "ll_team": 0.4852988609175026,
+    "p_champion_driver": 0.7807984375000001,
+    "p_champion_team": 0.8609390625
+  },
+  "model_s0.15": {
+    "ll_driver": 0.41653264598666206,
+    "ll_team": 0.47142646727516624,
+    "p_champion_driver": 0.7805234375000001,
+    "p_champion_team": 0.861246875
+  },
+  "model_s0.3": {
+    "ll_driver": 0.40703635882303957,
+    "ll_team": 0.4465022736321196,
+    "p_champion_driver": 0.7790953125,
+    "p_champion_team": 0.860659375
+  },
+  "model_s0.5": {
+    "ll_driver": 0.39877593742301504,
+    "ll_team": 0.42124702519023605,
+    "p_champion_driver": 0.7742109374999999,
+    "p_champion_team": 0.8570171875
+  },
+  "model_s0.8": {
+    "ll_driver": 0.39575833070333655,
+    "ll_team": 0.36582216691700353,
+    "p_champion_driver": 0.762396875,
+    "p_champion_team": 0.8423390625
+  },
+  "model_s0.8_minus_equal_ll_driver": [
+    0.020546861167142327,
+    -0.10134562912864796,
+    0.1492737528759505
+  ],
+  "model_s0.8_minus_equal_ll_team": [
+    -0.014459420953380738,
+    -0.11923816729683766,
+    0.10749169279253745
+  ]
+}

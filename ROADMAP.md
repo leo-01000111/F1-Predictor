@@ -144,8 +144,15 @@ needs an account). F1 race markets exist from 2025: winner (`KXF1RACE`) and podi
 
 ## Phase 5: product
 
-- [ ] Championship simulation: drivers' and constructors' title odds after each race
-      (reuses the Phase 3 Monte Carlo).
+- [x] Championship simulation (`src/models/season_sim.py`, `scripts/title_odds.py`, run by CI
+      after each race, `title` block in the site JSON): pre-qualifying two-stage model (20 inputs,
+      monotone constraints: unconstrained it learned reversed form effects among front-runners),
+      future-race features from the normal pipeline, one form shock per team per simulated season
+      (sd 0.8), sprints included, standings checked against Jolpica. Backtest 32 checkpoints
+      2018-2025 (`scripts/championship_backtest.py`): champion log loss 0.396 drivers / 0.366
+      constructors vs 0.375 / 0.380 for points-only "equal cars" (within noise); more probability on
+      the eventual champion on average (0.76 vs 0.75, 0.84 vs 0.82); in line with Kalshi's 2025
+      title market. Biggest miss: 2021 after R11 (Verstappen 10%).
 - [ ] Methodology/backtest page: calibration plot, model vs grid vs market, walk-forward log loss.
 - [ ] Own site (same pattern as Evans: `site/` + `build.py` in this repo, Pages workflow,
       served at `/f1/`) once two of these exist:

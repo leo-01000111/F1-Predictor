@@ -46,6 +46,8 @@ class FinishModel:
         self._model = make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=1000))
 
     def fit(self, df: pd.DataFrame, sample_weight: Optional[np.ndarray] = None) -> "FinishModel":
+        # Use the inputs that exist (a pre-qualifying model has no grid or weather)
+        self.cols = [c for c in self.cols if c in df.columns]
         y = 1 - pd.to_numeric(df["dnf"], errors="coerce").fillna(0).astype(int)
         kw = {"logisticregression__sample_weight": sample_weight} if sample_weight is not None else {}
         self._model.fit(df[self.cols].astype(float).fillna(0.0), y, **kw)

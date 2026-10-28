@@ -212,6 +212,17 @@ def build(year: int) -> dict:
             "drivers": [{**d, "finish": finish.get(d["driver"])} for d in drivers],
         }
 
+    # Championship odds (scripts/title_odds.py), top of each table
+    title = None
+    t = _load(PRED_DIR / f"{year}_title.json")
+    if t:
+        title = {
+            "after_round": t.get("after_round"),
+            "races_left": t.get("races_left"),
+            "drivers": [{**d, "team": canonical_team(d.get("team"))} for d in t.get("drivers", [])[:6]],
+            "teams": [{**x, "team": canonical_team(x.get("team"))} for x in t.get("teams", [])[:4]],
+        }
+
     active = _load(MODELS_DIR / "active_model.json") or {}
     metrics = _load(MODELS_DIR / "holdout_metrics.json") or {}
     n = len(record)
@@ -230,6 +241,7 @@ def build(year: int) -> dict:
         },
         "next": nxt,
         "last": last,
+        "title": title,
         "record": record,
         "record_summary": {
             "races": n,

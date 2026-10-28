@@ -1,5 +1,5 @@
 {
- "updated_at": "2026-10-28T16:47:09Z",
+ "updated_at": "2026-10-28T18:26:29Z",
  "season": 2026,
  "model": {
   "trained_at": "2026-10-28T16:46:24.604555+00:00",
@@ -296,6 +296,86 @@
     "p_top10": 0.0047,
     "p_finish": null,
     "finish": 18
+   }
+  ]
+ },
+ "title": {
+  "after_round": 18,
+  "races_left": 5,
+  "drivers": [
+   {
+    "driver": "ANT",
+    "team": "Mercedes",
+    "points": 365.0,
+    "expected_points": 429.6,
+    "p_champion": 1.0,
+    "p_top3": 1.0
+   },
+   {
+    "driver": "VER",
+    "team": "Red Bull Racing",
+    "points": 236.0,
+    "expected_points": 322.3,
+    "p_champion": 0.0,
+    "p_top3": 0.8448
+   },
+   {
+    "driver": "HAM",
+    "team": "Ferrari",
+    "points": 241.0,
+    "expected_points": 297.6,
+    "p_champion": 0.0,
+    "p_top3": 0.4727
+   },
+   {
+    "driver": "LEC",
+    "team": "Ferrari",
+    "points": 233.0,
+    "expected_points": 289.5,
+    "p_champion": 0.0,
+    "p_top3": 0.2907
+   },
+   {
+    "driver": "RUS",
+    "team": "Mercedes",
+    "points": 242.0,
+    "expected_points": 288.7,
+    "p_champion": 0.0,
+    "p_top3": 0.3222
+   },
+   {
+    "driver": "NOR",
+    "team": "McLaren",
+    "points": 211.0,
+    "expected_points": 264.4,
+    "p_champion": 0.0,
+    "p_top3": 0.0696
+   }
+  ],
+  "teams": [
+   {
+    "team": "Mercedes",
+    "points": 607.0,
+    "expected_points": 718.3,
+    "p_champion": 0.9974
+   },
+   {
+    "team": "Ferrari",
+    "points": 474.0,
+    "expected_points": 587.1,
+    "p_champion": 0.0026
+   },
+   {
+    "team": "Red Bull Racing",
+    "points": 355.0,
+    "expected_points": 477.7,
+    "p_champion": 0.0
+   },
+   {
+    "team": "McLaren",
+    "points": 355.0,
+    "expected_points": 443.0,
+    "p_champion": 0.0
    }
   ]
  },
