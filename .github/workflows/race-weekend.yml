@@ -58,7 +58,9 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/raw data/processed data/predictions data/results \
+          # data/logs: the tick's event log (src/ci_log.py), committed every run
+          # so each weekend's timeline can be read back (scripts/ci_log_report.py)
+          git add data/raw data/processed data/predictions data/results data/logs \
                   models/xgb_race.pkl models/active_model.json models/holdout_metrics.json \
                   site/f1-predictions.json
           if git diff --staged --quiet; then

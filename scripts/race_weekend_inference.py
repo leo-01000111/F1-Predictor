@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -66,12 +67,19 @@ def _grid_changed(year: int, round_num: int, starting_grid: dict[str, int]) -> b
     return bool(changed)
 
 
+def _ts() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def main(
     year: int,
     round_num: int,
     dry_run: bool = False,
     only_if_grid_changed: bool = False,
 ) -> None:
+    # Where each input came from and when it was fetched; stored in the
+    # prediction file and logged by ci_tick (data/logs/ci_<season>.jsonl)
+    inputs: dict = {"started_at": _ts()}
 
     from src.data_collection.f1_live import (
         get_live_quali_dataframe,
@@ -86,6 +94,8 @@ def main(
     # Official grid after penalties; {} until OpenF1 publishes it (then the
     # qualifying order is used and the CI re-checks before the race)
     starting_grid = get_starting_grid(year, round_num)
+    inputs["starting_grid"] = {"source": "openf1", "fetched_at": _ts(), "n": len(starting_grid),
+                               "grid": sorted(starting_grid.items(), key=lambda kv: kv[1])}
     if only_if_grid_changed and not _grid_changed(year, round_num, starting_grid):
         return
 
@@ -117,6 +127,7 @@ def main(
             inseason_new = inseason_df[
                 ~inseason_df.apply(lambda r: (r["year"], r["round"]) in existing_keys, axis=1)
             ]
+            inputs["in_season_rounds_added"] = sorted(int(r) for r in inseason_new["round"].unique())
             if not inseason_new.empty:
                 race_df_history = pd.concat(
                     [race_df_history, inseason_new], ignore_index=True
@@ -139,6 +150,12 @@ def main(
         sys.exit(1)
 
     logger.info(f"Got quali results for {len(quali_df)} drivers")
+    inputs["quali"] = {"source": "openf1", "fetched_at": _ts(), "n": len(quali_df),
+                       "order": quali_df.sort_values("quali_position")["driver_abbr"].tolist()}
+    inputs["history_last_round"] = {
+        "year": int(race_df_history["year"].max()),
+        "round": int(race_df_history.loc[race_df_history["year"] == race_df_history["year"].max(), "round"].max()),
+    }
     print(quali_df[["driver_abbr", "team", "quali_position", "quali_gap_to_pole_s"]].to_string(index=False))
 
     # ------------------------------------------------------------------ #
@@ -149,6 +166,7 @@ def main(
 
     logger.info(f"Fetching weather forecast for {circuit_key} on {race_date}...")
     weather_dict = get_race_day_forecast(circuit_key, race_date)
+    inputs["weather"] = {"source": "open-meteo forecast" if weather_dict else "defaults", "fetched_at": _ts()}
 
     if not weather_dict:
         logger.warning("Could not fetch weather forecast, using defaults")
@@ -205,10 +223,13 @@ def main(
                     "Run: python scripts/backfill_pit_sprint.py --sprint --merge")
     # This weekend's sprint ran before qualifying but is only ingested after the race
     has_sprint = sprint_df is not None and ((sprint_df["year"] == year) & (sprint_df["round"] == round_num)).any()
+    inputs["sprint"] = {"source": "sprint_results.parquet" if has_sprint else "none", "fetched_at": _ts()}
     if not has_sprint:
         live_sprint = get_live_sprint_results(year, round_num)
         if not live_sprint.empty:
             sprint_df = pd.concat([sprint_df, live_sprint], ignore_index=True) if sprint_df is not None else live_sprint
+            inputs["sprint"] = {"source": "jolpica", "fetched_at": _ts(), "n": len(live_sprint),
+                                "top3": live_sprint.sort_values("sprint_position")["driver"].head(3).tolist()}
 
     logger.info("Running model inference...")
     result = run_inference(
@@ -220,6 +241,7 @@ def main(
         pit_df=pit_df,
         sprint_df=sprint_df,
         starting_grid=starting_grid,
+        inputs=inputs,
     )
 
     # ------------------------------------------------------------------ #

@@ -32,6 +32,7 @@ def run_inference(
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
     starting_grid: Optional[dict[str, int]] = None,
+    inputs: Optional[dict] = None,
 ) -> dict:
     """
     Build features and generate race predictions.
@@ -41,6 +42,7 @@ def run_inference(
     starting_grid ({driver: grid slot}, f1_live.get_starting_grid) is the
     official grid after penalties, which is what training saw as grid_position.
     Without it the qualifying order stands in and penalties are missed.
+    inputs (where each input came from and when) is stored in the document as is.
     """
     from src.features.build_features import FEATURE_COLS, load_feature_matrix, load_fill_values, pit_lane_to_back
     from src.features.driver_features import (
@@ -344,6 +346,7 @@ def run_inference(
         "generated_at": datetime.utcnow().isoformat(),
         "weather": weather_dict,
         "grid_source": grid_source,
+        "inputs": inputs or {},
         "drivers": drivers,
         "teams": teams,
         "model": {

@@ -1,8 +1,8 @@
 {
- "updated_at": "2026-10-28T18:26:29Z",
+ "updated_at": "2026-10-28T19:01:30Z",
  "season": 2026,
  "model": {
-  "trained_at": "2026-10-28T16:46:24.604555+00:00",
+  "trained_at": "2026-10-28T18:48:58.436692+00:00",
   "train_years": [
    2014,
    2025
@@ -12,25 +12,25 @@
    2026
   ],
   "holdout_races": 42,
-  "winner_accuracy": 0.6428571428571429,
+  "winner_accuracy": 0.7142857142857143,
   "podium_accuracy": 0.7063492063492064,
-  "spearman": 0.6587249461881696,
+  "spearman": 0.6638650786574944,
   "importance": [
    {
     "group": "qualifying",
-    "share": 0.465
+    "share": 0.493
    },
    {
     "group": "driver",
-    "share": 0.329
+    "share": 0.304
    },
    {
     "group": "car",
-    "share": 0.08
+    "share": 0.076
    },
    {
     "group": "championship",
-    "share": 0.053
+    "share": 0.052
    },
    {
     "group": "circuit",
@@ -38,15 +38,15 @@
    },
    {
     "group": "weather",
-    "share": 0.024
+    "share": 0.021
    },
    {
     "group": "reliability",
-    "share": 0.01
+    "share": 0.012
    },
    {
     "group": "sprint",
-    "share": 0.008
+    "share": 0.01
    }
   ]
  },
