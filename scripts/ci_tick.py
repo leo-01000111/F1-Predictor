@@ -7,7 +7,8 @@ than needed is harmless.
 
   1. ingest   A race ended >= RESULTS_DELAY ago and its round is missing from
               race_results.parquet: collect race + quali, weather, pit stops
-              and sprints for the season, record the result against the
+              and sprints for the season, Kalshi market prices (logged only),
+              record the result against the
               prediction (if one was made), then retrain with quick_train.
   2. predict  Qualifying for the next race ended >= QUALI_DELAY ago, the race
               has not started, and there is no prediction file: run
@@ -106,6 +107,9 @@ def ingest(year: int, done_races: list[dict], dry_run: bool) -> bool:
     ok &= _run(["-m", "src.data_collection.weather", "--years", y], dry_run)
     ok &= _run(["scripts/backfill_pit_sprint.py", "--pit", "--start", y, "--end", y, "--merge"], dry_run)
     ok &= _run(["scripts/backfill_pit_sprint.py", "--sprint", "--start", y, "--end", y, "--merge"], dry_run)
+    # Market prices (Phase 4): logged for the model-vs-market comparison, not used by
+    # the model, so a Kalshi outage must not fail the tick
+    _run(["-m", "src.data_collection.kalshi_odds"], dry_run)
 
     for rnd in new_rounds:
         pred = PRED_DIR / f"{year}_R{rnd:02d}.json"

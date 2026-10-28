@@ -122,12 +122,25 @@ variants on cached two-stage predictions).
 
 The market is the real benchmark. Benter's model alone barely beat the public odds; the blend won.
 
-- [ ] Start logging pre-race odds now (Polymarket F1 markets are free; Betfair historical is paid):
-      winner + podium prices after quali, to `data/raw/odds.parquet`. One season is needed before
-      it is useful.
-- [ ] De-vig, then compare log loss: model vs market vs grid.
-- [ ] Benter-style blend: logistic combination of model and market log-probabilities (2 weights).
-- [ ] Track "beat the closing price" per race on the site record.
+Source: Kalshi (free public API, US-regulated exchange; Polymarket is blocked in France, Betfair
+needs an account). F1 race markets exist from 2025: winner (`KXF1RACE`) and podium
+(`KXF1RACEPODIUM`), settled ones under `/historical`. Prices about 10% over 1 (the margin).
+
+- [x] `src/data_collection/kalshi_odds.py` -> `data/raw/kalshi_odds.parquet`: bid/ask/last and a
+      price at our prediction time (quali + 2h45) and at race start, 2025 R1 - 2026 R18
+      (42 winner, 39 podium markets). Empty books are "no price", never their 0.5 midpoint.
+      Collected automatically in the post-race CI step (ci_tick ingest, cannot fail the tick).
+- [x] De-vig (normalise) and compare (`scripts/market_backtest.py`, out-of-sample model):
+      at prediction time, winner log loss model 1.108 / market 1.160 / grid 1.369; podium
+      0.1941 / 0.2023 / 0.2148. Model vs market -0.052 [-0.209, +0.104] and -0.008: the model
+      matches a real-money market at the time it predicts. At race start the market has caught
+      up (podium 0.1902 vs model 0.1941).
+- [x] Benter-style blend (2 weights, fitted on one season, scored on the other): not shipped.
+      vs model at prediction time: winner -0.058 [-0.228, +0.134], podium +0.0003; weights flip
+      between seasons (0.3/1.3 vs 1.5/0.4). With race-start prices: winner -0.145 [-0.274, +0.013].
+- [ ] Re-test the blend when ~2 more seasons of prices exist (CI keeps collecting). If the
+      race-start blend holds up, add a final prediction update just before the start.
+- [ ] Track "model vs market" per race on the site record.
 
 ## Phase 5: product
 
