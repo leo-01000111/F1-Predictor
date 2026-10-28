@@ -6,8 +6,10 @@ Day-to-day status stays in `TODO_FP_MIGRATION.md`; this file is the longer plan.
 
 ## Where we are
 
-- One XGBoost regressor (MAE loss on finish position, 34 features) -> Plackett-Luce sampler with
-  strength `exp(-pred_pos / T)`, `T = 1.0` fixed, never fitted.
+- (2026-10-27) One XGBoost regressor (MAE loss on finish position, 34 features) -> Plackett-Luce
+  sampler with strength `exp(-pred_pos / T)`, `T = 1.0` fixed, never fitted.
+- (2026-10-28) Now: XGBoost NDCG ranker on 33 features, PL temperature fitted out of sample.
+  It beats the grid on log loss over 191 walk-forward races; winner picks tie with pole.
 - Holdout 2025-26 (42 races), before this roadmap: winner 45.2%, podium 63.5%.
 - **The starting grid beats us on that holdout: pole sitter wins 69.0%, grid top 3 overlaps the podium 69.8%.**
 - About 26 races of 2022-23 were missing or empty in the training data (fixed in Phase 0).
@@ -63,11 +65,14 @@ A 42-race hit rate has a 95% interval of about +-15 points. It cannot tell two m
 
 Our probabilities come from a hand-set transform, so they are uncalibrated by construction.
 
-- [ ] Fit PL temperature `T` by maximum likelihood of actual finishing orders (walk-forward).
+- [x] Fit PL temperature `T` by maximum likelihood of the ordered top 3, on a season the model
+      did not train on (backtest: previous season; quick_train: calibration season).
 - [ ] Benter correction: Harville/PL overstates favourites for 2nd and 3rd. Fit separate exponents
       for positions 2 and 3.
-- [ ] Learn strengths directly: XGBoost `rank:pairwise` / `rank:ndcg`, or a custom PL loss,
-      instead of MAE regression on position (MAE with a DNF spike at n+1 predicts medians).
+- [x] Learn strengths directly: `XGBRaceRanker` (NDCG, one group per race) is production since
+      2026-10-28. Walk-forward 191 races, top-3 log loss: ranker 4.861, regressor 5.160, grid 5.296;
+      ranker vs grid -0.435 [-0.718, -0.163]. Winner hit 52.4% vs pole 53.9% (tie).
+      Pairwise ranking objective was no better than the regressor (5.267).
 - [ ] Remove isotonic-calibrator leftovers once PL temperature replaces them.
 
 ## Phase 3: structural model
@@ -75,6 +80,11 @@ Our probabilities come from a hand-set transform, so they are uncalibrated by co
 What the F1 literature agrees on: the car explains ~85-88% of results, constructor strength drifts
 quickly, driver skill is stable, and about a quarter of starts end in a DNF.
 
+- [~] Built `src/features/strength_ratings.py` (PL-gradient driver + team ratings, team reset at
+      regulation changes; -1.525 one-race-ahead log-lik per finisher vs -1.950 uniform). Computed
+      in training and inference. As extra inputs they did NOT help (regressor: -0.128 vs -0.135;
+      ranker: -0.361 vs -0.435 vs grid), so not in FEATURE_COLS. Next: use them as the
+      standalone model to blend, or as the prior for rookies only.
 - [ ] Latent strengths: driver + team-season ratings updated race by race (Powell's generalised Elo
       for PL is the cheap version; a Kalman / state-space model like Lindner et al. 2026 the full one).
       Quali gaps update team pace fastest. Start as features for XGBoost, then as a standalone model.

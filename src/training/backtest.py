@@ -28,7 +28,8 @@ from loguru import logger
 
 from src.training.weights import compute_recency_sample_weight
 
-T_GRID = np.round(np.arange(0.4, 6.01, 0.1), 2)
+# Geometric grid: regressor outputs need T ~ 1-3, ranker scores are smaller (T < 0.5)
+T_GRID = np.round(np.geomspace(0.05, 8.0, 60), 3)
 
 PredictFn = Callable[[pd.DataFrame, pd.DataFrame], np.ndarray]
 
@@ -99,6 +100,24 @@ def make_xgb_predict(cols: list[str], params: Optional[dict] = None) -> PredictF
         model = XGBRacePredictor(params=params)
         model.fit(train[cols], train["target_position"].values,
                   sample_weight=compute_recency_sample_weight(train["year"].values))
+        return model.predict(test[cols])
+
+    return _predict
+
+
+def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> PredictFn:
+    """XGBRaceRanker (the production model class) on `cols`. Returns -score (T=1)."""
+    from src.models.xgb_model import XGBRaceRanker
+
+    params = dict(XGBRaceRanker.DEFAULT_PARAMS, objective=objective)
+    if objective != "rank:ndcg":
+        params["lambdarank_pair_method"] = "mean"
+
+    def _predict(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
+        model = XGBRaceRanker(params=params)
+        model.fit(train[cols], train["target_position"].values,
+                  sample_weight=compute_recency_sample_weight(train["year"].values),
+                  qid=(train["year"] * 100 + train["round"]).to_numpy())
         return model.predict(test[cols])
 
     return _predict

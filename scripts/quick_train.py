@@ -1,9 +1,10 @@
 """
-Quick training script — v2 (regression + Plackett-Luce).
+Quick training script — v3 (learning-to-rank + Plackett-Luce).
 
-Trains a single XGBRacePredictor to predict finish_position.
-Evaluation uses PlackettLuceSampler to convert predicted positions to
-coherent podium probabilities before computing metrics.
+Trains an XGBRaceRanker (NDCG, one group per race) and fits its Plackett-Luce
+temperature on a season it did not train on. Evaluation uses PlackettLuceSampler
+to convert predictions to coherent podium probabilities before computing metrics.
+Model choice: scripts/backtest.py (walk-forward 2018-2026).
 
 Two-pass strategy:
   Pass 1 (evaluation): honest holdout metrics + evaluation artifacts.
@@ -26,6 +27,14 @@ from src.models.model_registry import (  # noqa: E402
     write_active_model_metadata,
     write_holdout_metrics,
 )
+
+
+MODEL_FAMILY = "xgb_rank_v3"
+
+
+def _race_ids(df) -> "np.ndarray":
+    """One query id per race for the ranker."""
+    return (df["year"] * 100 + df["round"]).to_numpy()
 
 
 def _load_tuned_params(use_tuned: bool) -> "dict | None":
@@ -71,7 +80,7 @@ def main() -> None:
     from src.data_collection.weather import load_weather_history
     from src.features.build_features import FEATURE_COLS, build_feature_matrix, save_feature_matrix
     from src.models.plackett_luce import PlackettLuceSampler
-    from src.models.xgb_model import XGBRacePredictor
+    from src.models.xgb_model import XGBRaceRanker
     from src.training.evaluate import evaluate_race_predictions
     from src.training.weights import compute_recency_sample_weight
 
@@ -153,11 +162,16 @@ def main() -> None:
         f"max={train_weight.max():.3f} mean={train_weight.mean():.3f}"
     )
 
-    xgb_params = _load_tuned_params(args.use_tuned_params)
+    if args.use_tuned_params:
+        logger.warning("--use-tuned-params holds regressor params; the v3 ranker ignores them")
 
-    logger.info("Training evaluation XGBRacePredictor...")
-    model = XGBRacePredictor(params=xgb_params)
-    model.fit(X_train, y_train, sample_weight=train_weight)
+    logger.info("Training evaluation XGBRaceRanker...")
+    model = XGBRaceRanker()
+    model.fit(X_train, y_train, sample_weight=train_weight, qid=_race_ids(train_df))
+    # Plackett-Luce temperature from the calibration season (not in training)
+    cal_df = fm[fm["year"].isin(cal_years)].reset_index(drop=True)
+    if not cal_df.empty:
+        model.fit_temperature(pd.DataFrame(cal_df[FEATURE_COLS].values, columns=FEATURE_COLS), cal_df)
     model.save("xgb_race")
 
     MODELS_DIR = ROOT / "models"
@@ -176,7 +190,8 @@ def main() -> None:
         metrics["cal_years"] = cal_years
         metrics["train_years"] = sorted(int(y) for y in train_df["year"].unique())
 
-        metric_paths = write_holdout_metrics(metrics, model_family="xgb_v2")
+        metrics["temperature"] = model.temperature
+        metric_paths = write_holdout_metrics(metrics, model_family=MODEL_FAMILY)
         logger.info(f"Holdout metrics saved -> {metric_paths['generic']}")
         logger.info(f"Model-specific metrics -> {metric_paths['family']}")
 
@@ -252,13 +267,19 @@ def main() -> None:
     y_prod = prod_train_df["target_position"].values
     prod_weight = compute_recency_sample_weight(prod_train_df["year"].values)
 
-    prod_model = XGBRacePredictor(params=xgb_params)
-    prod_model.fit(X_prod, y_prod, sample_weight=prod_weight)
+    prod_model = XGBRaceRanker()
+    prod_model.fit(X_prod, y_prod, sample_weight=prod_weight, qid=_race_ids(prod_train_df))
+    # Temperature from the latest season, which production does not train on
+    prod_cal_df = fm[fm["year"].isin(prod_cal_years)].reset_index(drop=True)
+    if not prod_cal_df.empty:
+        prod_model.fit_temperature(
+            pd.DataFrame(prod_cal_df[FEATURE_COLS].values, columns=FEATURE_COLS), prod_cal_df
+        )
     prod_model.save("xgb_race")
-    logger.info("Production XGBRacePredictor saved -> models/xgb_race.pkl")
+    logger.info("Production XGBRaceRanker saved -> models/xgb_race.pkl")
 
     write_active_model_metadata(
-        model_family="xgb_v2",
+        model_family=MODEL_FAMILY,
         model_artifact="xgb_race.pkl",
         calibrator_artifact=None,
         train_years=[int(y) for y in sorted(prod_train_df["year"].unique())],

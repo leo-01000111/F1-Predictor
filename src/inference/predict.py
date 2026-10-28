@@ -273,7 +273,8 @@ def run_inference(
     team_idx = feat_df["team_idx"].values.astype(int)
     circuit_idx = feat_df["circuit_key_idx"].values.astype(int)
 
-    # 5. Model inference (v2: single regressor + Plackett-Luce)
+    # 5. Model inference. xgb_race.pkl is the v3 ranker; its predict() already
+    # divides by the fitted PL temperature, so the sampler below keeps T=1.
     from src.models.xgb_model import XGBRacePredictor
 
     model = XGBRacePredictor.load("xgb_race")
@@ -325,9 +326,11 @@ def run_inference(
         "drivers": drivers,
         "teams": teams,
         "model": {
-            "family": "xgb_v2",
+            "family": active_model.get("model_family", "xgb_rank_v3"),
             "artifact": "xgb_race.pkl",
-            "sampler": f"plackett_luce(T={sampler.temperature}, n_sim={sampler.n_simulations})",
+            "sampler": (
+                f"plackett_luce(T={getattr(model, 'temperature', 1.0)}, n_sim={sampler.n_simulations})"
+            ),
             "active_manifest": active_model,
         },
         "predictions": predictions,

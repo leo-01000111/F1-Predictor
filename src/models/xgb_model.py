@@ -1,6 +1,7 @@
 """
-XGBoost race predictor (v2).
-Single regression model predicting finish_position per driver.
+XGBoost race models.
+  v2 XGBRacePredictor: regression on finish_position.
+  v3 XGBRaceRanker: learning-to-rank per race (production).
 Outputs are consumed by PlackettLuceSampler to produce coherent podium probabilities.
 """
 from __future__ import annotations
@@ -158,6 +159,89 @@ class XGBRacePredictor(BaseEstimator, RegressorMixin):
             obj = pickle.load(f)
         logger.info(f"Loaded XGBRacePredictor <- {path}")
         return obj
+
+
+# --------------------------------------------------------------------------- #
+# V3: learning-to-rank model (production since 2026-10-28)
+# --------------------------------------------------------------------------- #
+
+class XGBRaceRanker(XGBRacePredictor):
+    """
+    XGBoost ranker with one query group per race (NDCG objective).
+
+    Trained on the finishing order directly instead of regressing the position:
+    walk-forward 2018-2026 (191 races) top-3 PL log loss 4.861 vs 5.160 for the
+    v2 regressor and 5.296 for the grid (scripts/backtest.py, ndcg_all).
+
+    predict() returns -score / temperature: a "predicted position" (lower is
+    better) already on the Plackett-Luce scale, so callers keep using
+    PlackettLuceSampler(temperature=1.0). The temperature is fitted on a season
+    the model was not trained on (fit_temperature).
+    """
+
+    DEFAULT_PARAMS = {
+        "objective": "rank:ndcg",
+        "lambdarank_pair_method": "topk",
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 4,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "min_child_weight": 3,
+        "n_jobs": -1,
+        "random_state": 42,
+    }
+
+    def __init__(self, params: Optional[dict] = None) -> None:
+        super().__init__(params=params or self.DEFAULT_PARAMS)
+        self.temperature = 1.0
+
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        qid: Optional[np.ndarray] = None,
+    ) -> "XGBRaceRanker":
+        """
+        y: target_position (1 = win, n_starters + 1 = DNF).
+        qid: race id per row (e.g. year * 100 + round). Required.
+        sample_weight: per row; the first row of each race gives the race weight.
+        Relevance = n_starters + 1 - target_position, so the winner has the
+        highest label and DNFs get 0.
+        """
+        if qid is None:
+            raise ValueError("XGBRaceRanker.fit needs qid (one id per race)")
+        qid = np.asarray(qid)
+        order = np.argsort(qid, kind="stable")
+        X_s = X.iloc[order].reset_index(drop=True)
+        q_s = qid[order]
+        y_s = np.asarray(y, dtype=float)[order]
+        n = pd.Series(q_s).map(pd.Series(q_s).value_counts()).to_numpy()
+        rel = np.clip(n + 1 - y_s, 0, None)
+
+        fit_kwargs: dict = {"qid": q_s}
+        if sample_weight is not None:
+            w_s = np.asarray(sample_weight, dtype=float)[order]
+            first = np.r_[True, q_s[1:] != q_s[:-1]]
+            fit_kwargs["sample_weight"] = w_s[first]
+
+        self._model = xgb.XGBRanker(**self.params)
+        self._model.fit(X_s, rel, **fit_kwargs)
+        logger.info(f"XGBRaceRanker trained on {len(X_s)} rows, {len(np.unique(q_s))} races")
+        return self
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return -super().predict(X) / self.temperature
+
+    def fit_temperature(self, X: pd.DataFrame, races: pd.DataFrame) -> float:
+        """Fit the PL temperature on out-of-sample races (year, round, finish_position)."""
+        from src.training.backtest import fit_temperature
+
+        self.temperature = 1.0
+        self.temperature = fit_temperature(self.predict(X), races.reset_index(drop=True))
+        logger.info(f"XGBRaceRanker temperature = {self.temperature}")
+        return self.temperature
 
 
 

@@ -15,6 +15,8 @@ Variants:
   all_ratings     all + driver/team strength ratings
   ratings_swap    reputation features replaced by the ratings
   grid_ratings    grid + quali gap + ratings
+  rank_<v>        XGBRanker (pairwise) on variant <v>'s columns, e.g. rank_all
+  ndcg_<v>        XGBRanker (NDCG, top-weighted) on variant <v>'s columns
 
 Usage:
     python scripts/backtest.py                       # all variants, test 2018-2026
@@ -40,7 +42,13 @@ from loguru import logger
 
 from src.features.build_features import FEATURE_COLS, load_feature_matrix
 from src.models.xgb_model import XGBRacePredictor
-from src.training.backtest import grid_predict, make_xgb_predict, paired_bootstrap, walk_forward
+from src.training.backtest import (
+    grid_predict,
+    make_ranker_predict,
+    make_xgb_predict,
+    paired_bootstrap,
+    walk_forward,
+)
 
 OUT_DIR = ROOT / "models" / "experiments"
 
@@ -89,6 +97,11 @@ def main() -> None:
     for name in variants:
         if name == "grid":
             races.append(walk_forward(fm, grid_predict, years, name, fit_t_on_train=True))
+        elif name.startswith("rank_"):
+            # rank_<variant> / ndcg_... : XGBRanker on that variant's columns
+            races.append(walk_forward(fm, make_ranker_predict(VARIANT_COLS[name[5:]]), years, name))
+        elif name.startswith("ndcg_"):
+            races.append(walk_forward(fm, make_ranker_predict(VARIANT_COLS[name[5:]], "rank:ndcg"), years, name))
         else:
             races.append(walk_forward(fm, make_xgb_predict(VARIANT_COLS[name], params), years, name))
     races = pd.concat(races, ignore_index=True)
