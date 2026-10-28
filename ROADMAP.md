@@ -103,6 +103,12 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       Not shipped: +0.003 [-0.026, +0.035].
 - [x] Exponential recency half-life (`compute_recency_sample_weight(half_life=)`), 2/4/8 years.
       Not shipped: best -0.027 [-0.064, +0.011] (8 years). Linear 0.65-1.35 stays.
+- [x] In-season retraining (`walk_forward_by_round`, `scripts/backtest.py round_two_stage[_bK]`):
+      retrain before every race incl. the current season, T from the previous 22 races. Not
+      shipped: 1x -0.010 [-0.092, +0.072], 2x current-season weight -0.030 [-0.112, +0.058]
+      (peak), 4x +0.006. Helps in runaway / new-rules seasons (2023, 2026), costs in close ones.
+      Production keeps training on completed seasons; current-season races enter via features
+      (form, standings, reliability, this weekend's quali) and the temperature.
 - [x] Ensembling: covered by the rating blend (the constrained 2-weight log-pool). All three
       calibration pieces together overfit: +0.015 [-0.091, +0.140].
 - [ ] Not attempted: a full Kalman / state-space strength model (Lindner et al. 2026) with

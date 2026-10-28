@@ -20,6 +20,8 @@ Variants:
   finishers_ranker  Phase 3 stage 2 alone: production ranker trained on finishers only
   two_stage       Phase 3: finishers-only ranker + finish-probability model, combined
   two_stage_h<N>  two_stage with exponential recency weights, N-year half-life
+  round_two_stage[_b<K>]  two_stage retrained before EVERY race (current season included),
+                  T from the previous 22 races; _b<K>: current-season rows weighted K x
 
 Usage:
     python scripts/backtest.py                       # all variants, test 2018-2026
@@ -52,6 +54,7 @@ from src.training.backtest import (
     make_xgb_predict,
     paired_bootstrap,
     walk_forward,
+    walk_forward_by_round,
 )
 
 OUT_DIR = ROOT / "models" / "experiments"
@@ -105,6 +108,13 @@ def main() -> None:
             races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS, use_finish_model=False), years, name))
         elif name == "two_stage":
             races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS), years, name))
+        elif name.startswith("round_two_stage"):
+            # round_two_stage[_b<K>]: retrain before every race incl. the current season,
+            # current-season rows weighted K times extra
+            boost = float(name.split("_b")[1]) if "_b" in name else 1.0
+            races.append(walk_forward_by_round(
+                fm, make_two_stage_predict(FEATURE_COLS, current_boost=boost), years, name,
+                warmup_year=years[0] - 1))
         elif name.startswith("two_stage_h"):
             # two_stage_h<N>: exponential recency weights with an N-year half-life
             races.append(walk_forward(

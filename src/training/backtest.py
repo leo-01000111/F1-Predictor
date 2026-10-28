@@ -146,19 +146,24 @@ def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> Pr
 
 
 def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
-                           half_life: Optional[float] = None) -> PredictFn:
+                           half_life: Optional[float] = None, current_boost: float = 1.0) -> PredictFn:
     """Phase 3: pace ranker trained on finishers only (+ finish model for P(finish)).
 
     use_finish_model=False isolates stage 2: the finishers-only ranker scored as if
     every car finishes. half_life: exponential recency weights (years) instead of
-    the default linear 0.65-1.35.
+    the default linear 0.65-1.35. current_boost: extra weight multiplier for training
+    rows from the test race's own season (only matters with in-season retraining).
     """
     from src.models.xgb_model import TwoStageRaceModel
 
     def _predict(train: pd.DataFrame, test: pd.DataFrame):
+        w = compute_recency_sample_weight(train["year"].values, half_life=half_life)
+        if current_boost != 1.0:
+            w = np.where(train["year"].to_numpy() == test["year"].iloc[0], w * current_boost, w)
+            w = w / w.mean()
         model = TwoStageRaceModel()
         model.fit(train[cols], train["target_position"].values,
-                  sample_weight=compute_recency_sample_weight(train["year"].values, half_life=half_life),
+                  sample_weight=w,
                   qid=(train["year"] * 100 + train["round"]).to_numpy(),
                   dnf=pd.to_numeric(train["dnf"], errors="coerce").fillna(0).to_numpy())
         pred = model.predict(test[cols])
@@ -220,6 +225,59 @@ def walk_forward(
             f"ll_winner {scores['ll_winner'].mean():.3f}, ll_top3 {scores['ll_top3'].mean():.3f}, T={t}"
         )
     return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
+
+
+def walk_forward_by_round(
+    fm: pd.DataFrame,
+    predict: PredictFn,
+    test_years: list[int],
+    name: str,
+    warmup_year: Optional[int] = None,
+    t_window: int = 22,
+) -> pd.DataFrame:
+    """In-season retraining: each race is predicted by a model trained on every
+    earlier race, including earlier rounds of its own season.
+
+    T for each race is fitted on the out-of-sample predictions of the previous
+    `t_window` races from this same process. Races of `warmup_year` are predicted
+    (to seed T) but not scored.
+    """
+    fm = fm.reset_index(drop=True)
+    first = warmup_year if warmup_year is not None else test_years[0]
+    keys = sorted({(int(y), int(r)) for y, r in zip(fm["year"], fm["round"])
+                   if first <= y <= test_years[-1]})
+    history: list[tuple[np.ndarray, pd.DataFrame, Optional[np.ndarray]]] = []
+    results = []
+    for year, rnd in keys:
+        before = (fm["year"] < year) | ((fm["year"] == year) & (fm["round"] < rnd))
+        train = fm[before].reset_index(drop=True)
+        test = fm[(fm["year"] == year) & (fm["round"] == rnd)].reset_index(drop=True)
+        out = predict(train, test)
+        pred, q = out if isinstance(out, tuple) else (out, None)
+        if year in test_years:
+            if history:
+                recent = history[-t_window:]
+                t = fit_temperature(
+                    np.concatenate([h[0] for h in recent]),
+                    pd.concat([h[1] for h in recent], ignore_index=True),
+                    None if q is None else np.concatenate([h[2] for h in recent]),
+                )
+            else:
+                t = 1.0
+            scores = score_races(test, pred, t, q)
+            scores["ll_winner_t1"] = [
+                _nll(pred[idx], None if q is None else q[idx], top[:1], 1.0)
+                for _, idx, top in _race_orders(test)
+            ]
+            scores["temperature"] = t
+            scores["variant"] = name
+            results.append(scores)
+        history.append((pred, test, q))
+    res = pd.concat(results, ignore_index=True) if results else pd.DataFrame()
+    for y, g in res.groupby("year"):
+        logger.info(f"{name:14s} {y}: {len(g)} races, winner {g['winner_hit'].mean():.0%}, "
+                    f"ll_top3 {g['ll_top3'].mean():.3f}, T {g['temperature'].mean():.2f}")
+    return res
 
 
 def paired_bootstrap(a: pd.Series, b: pd.Series, n: int = 2000, seed: int = 0) -> tuple[float, float, float]:
