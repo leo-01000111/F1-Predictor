@@ -17,6 +17,8 @@ Variants:
   grid_ratings    grid + quali gap + ratings
   rank_<v>        XGBRanker (pairwise) on variant <v>'s columns, e.g. rank_all
   ndcg_<v>        XGBRanker (NDCG, top-weighted) on variant <v>'s columns
+  finishers_ranker  Phase 3 stage 2 alone: production ranker trained on finishers only
+  two_stage       Phase 3: finishers-only ranker + finish-probability model, combined
 
 Usage:
     python scripts/backtest.py                       # all variants, test 2018-2026
@@ -45,6 +47,7 @@ from src.models.xgb_model import XGBRacePredictor
 from src.training.backtest import (
     grid_predict,
     make_ranker_predict,
+    make_two_stage_predict,
     make_xgb_predict,
     paired_bootstrap,
     walk_forward,
@@ -97,6 +100,10 @@ def main() -> None:
     for name in variants:
         if name == "grid":
             races.append(walk_forward(fm, grid_predict, years, name, fit_t_on_train=True))
+        elif name == "finishers_ranker":
+            races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS, use_finish_model=False), years, name))
+        elif name == "two_stage":
+            races.append(walk_forward(fm, make_two_stage_predict(FEATURE_COLS), years, name))
         elif name.startswith("rank_"):
             # rank_<variant> / ndcg_... : XGBRanker on that variant's columns
             races.append(walk_forward(fm, make_ranker_predict(VARIANT_COLS[name[5:]]), years, name))

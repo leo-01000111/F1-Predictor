@@ -140,6 +140,7 @@ def _driver_rows(pred: dict) -> list[dict]:
             "p_win": round(float(p.get("p_win", 0)), 4),
             "p_podium": round(float(p.get("p_podium", 0)), 4),
             "p_top10": round(float(p.get("p_top10", 0)), 4),
+            "p_finish": p.get("p_finish"),
         }
         for p in rows
     ]

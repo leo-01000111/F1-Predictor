@@ -1,7 +1,8 @@
 """
 XGBoost race models.
   v2 XGBRacePredictor: regression on finish_position.
-  v3 XGBRaceRanker: learning-to-rank per race (production).
+  v3 XGBRaceRanker: learning-to-rank per race.
+  v4 TwoStageRaceModel: finishers-only ranker + finish probability (production).
 Outputs are consumed by PlackettLuceSampler to produce coherent podium probabilities.
 """
 from __future__ import annotations
@@ -234,14 +235,64 @@ class XGBRaceRanker(XGBRacePredictor):
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         return -super().predict(X) / self.temperature
 
+    def predict_finish(self, X: pd.DataFrame) -> Optional[np.ndarray]:
+        """P(finish) per car; None for a pace-only model (every car assumed to finish)."""
+        return None
+
     def fit_temperature(self, X: pd.DataFrame, races: pd.DataFrame) -> float:
         """Fit the PL temperature on out-of-sample races (year, round, finish_position)."""
         from src.training.backtest import fit_temperature
 
         self.temperature = 1.0
-        self.temperature = fit_temperature(self.predict(X), races.reset_index(drop=True))
-        logger.info(f"XGBRaceRanker temperature = {self.temperature}")
+        self.temperature = fit_temperature(self.predict(X), races.reset_index(drop=True),
+                                           self.predict_finish(X))
+        logger.info(f"{type(self).__name__} temperature = {self.temperature}")
         return self.temperature
+
+
+# --------------------------------------------------------------------------- #
+# V4: two-stage model (production since 2026-10-28)
+# --------------------------------------------------------------------------- #
+
+class TwoStageRaceModel(XGBRaceRanker):
+    """
+    Pace ranker trained on finishers only + a finish-probability model.
+
+    Walk-forward 2018-2026 (191 races) top-3 log loss: 4.636 vs 4.861 for the
+    v3 ranker (-0.225, 95% CI -0.351..-0.114) and 5.296 for the grid.
+
+    predict() is the pace part (-score / T, as v3). predict_finish() gives
+    P(finish). Probabilities: src.models.two_stage.simulate(pred, q, 1.0).
+    """
+
+    def __init__(self, params: Optional[dict] = None) -> None:
+        super().__init__(params=params)
+        self.finish_model = None
+
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        qid: Optional[np.ndarray] = None,
+        dnf: Optional[np.ndarray] = None,
+    ) -> "TwoStageRaceModel":
+        """dnf: 1 for retired cars. The ranker sees finishers only; the finish model sees all."""
+        from src.models.two_stage import FinishModel
+
+        if dnf is None:
+            raise ValueError("TwoStageRaceModel.fit needs dnf")
+        dnf = np.asarray(dnf, dtype=float)
+        fin = dnf == 0
+        X = X.reset_index(drop=True)
+        w = None if sample_weight is None else np.asarray(sample_weight, dtype=float)
+        super().fit(X[fin].reset_index(drop=True), np.asarray(y)[fin],
+                    sample_weight=None if w is None else w[fin], qid=np.asarray(qid)[fin])
+        self.finish_model = FinishModel().fit(X.assign(dnf=dnf), sample_weight=w)
+        return self
+
+    def predict_finish(self, X: pd.DataFrame) -> np.ndarray:
+        return self.finish_model.predict(X)
 
 
 

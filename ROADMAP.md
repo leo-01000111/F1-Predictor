@@ -8,8 +8,9 @@ Day-to-day status stays in `TODO_FP_MIGRATION.md`; this file is the longer plan.
 
 - (2026-10-27) One XGBoost regressor (MAE loss on finish position, 34 features) -> Plackett-Luce
   sampler with strength `exp(-pred_pos / T)`, `T = 1.0` fixed, never fitted.
-- (2026-10-28) Now: XGBoost NDCG ranker on 33 features, PL temperature fitted out of sample.
-  It beats the grid on log loss over 191 walk-forward races; winner picks tie with pole.
+- (2026-10-28) Now: two-stage model. P(finish) per car + XGBoost NDCG ranker on finishers
+  (33 features), PL temperature fitted out of sample. Beats the grid on log loss over 191
+  walk-forward races by 0.65; winner picks tie with pole.
 - Holdout 2025-26 (42 races), before this roadmap: winner 45.2%, podium 63.5%.
 - **The starting grid beats us on that holdout: pole sitter wins 69.0%, grid top 3 overlaps the podium 69.8%.**
 - About 26 races of 2022-23 were missing or empty in the training data (fixed in Phase 0).
@@ -91,8 +92,12 @@ quickly, driver skill is stable, and about a quarter of starts end in a DNF.
 - [ ] Regulation resets (2014, 2017, 2022, 2026): inflate team-rating uncertainty, keep driver skill.
 - [ ] Shrinkage: rookies and new teams start at a prior (team mean / reset distribution) with wide
       uncertainty instead of "missing form".
-- [ ] Two-stage DNF: P(finish) from team-season reliability, circuit and lap-1 incident rate;
-      pace ranking among finishers; combine by simulation.
+- [x] Two-stage DNF (production since 2026-10-28, `TwoStageRaceModel`): logistic P(finish) on
+      reliability, circuit, grid and weather features; NDCG ranker on finishers only; combined by
+      simulation (exact likelihood for scoring). Walk-forward 191 races, top-3 log loss 4.648 vs
+      4.861 for the v3 ranker and 5.296 for the grid. The finishers-only ranker alone gave nothing
+      (4.888): the gain is from P(finish). Holdout 2025-26: winner 64.3%, podium 70.6% (grid 69.8%).
+- [ ] Safety-car shock in the simulation (random reshuffle, stronger at high-SC circuits).
 - [ ] Result-level Monte Carlo: sample DNFs, a safety-car shock that reshuffles order, and race pace
       as noise around grid scaled by a circuit overtaking index (per-circuit Spearman grid vs finish).
       No lap data needed.

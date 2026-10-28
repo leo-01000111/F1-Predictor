@@ -17,6 +17,7 @@ def evaluate_race_predictions(
     feature_df: pd.DataFrame,
     pred_positions: np.ndarray,
     sampler: "Any",
+    finish_probs: "np.ndarray | None" = None,
 ) -> tuple[dict, pd.DataFrame]:
     """
     Evaluate a regression + Plackett-Luce model on a held-out set.
@@ -28,6 +29,8 @@ def evaluate_race_predictions(
     pred_positions : np.ndarray, shape (n_rows,) — predicted finish positions
                      aligned row-for-row with feature_df.
     sampler : PlackettLuceSampler instance.
+    finish_probs : optional P(finish) per row (two-stage model). When given, the
+                   race is simulated with retirements (src.models.two_stage).
 
     Returns
     -------
@@ -41,12 +44,18 @@ def evaluate_race_predictions(
     df = feature_df.copy().reset_index(drop=True)
     df["_pred_pos"] = np.asarray(pred_positions, dtype=float)
     df["_p1_pred"] = 0.0
+    if finish_probs is not None:
+        df["_q"] = np.asarray(finish_probs, dtype=float)
 
     results = []
 
     for (year, rnd), group in df.groupby(["year", "round"]):
         race_pred_pos = group["_pred_pos"].values
-        prob_matrix = sampler.simulate(race_pred_pos)  # (n_drivers, n_drivers)
+        if finish_probs is not None:
+            from src.models.two_stage import simulate
+            prob_matrix = simulate(race_pred_pos, group["_q"].values, 1.0, n_sims=sampler.n_simulations)
+        else:
+            prob_matrix = sampler.simulate(race_pred_pos)  # (n_drivers, n_drivers)
 
         p1_probs = prob_matrix[:, 0]
         p2_probs = prob_matrix[:, 1]

@@ -66,28 +66,50 @@ def _race_orders(df: pd.DataFrame) -> list[tuple[tuple, np.ndarray, list[int]]]:
     return out
 
 
-def fit_temperature(pred: np.ndarray, df: pd.DataFrame) -> float:
-    """T minimising mean top-3 PL log loss over the races in df."""
+def _nll(pred: np.ndarray, q: Optional[np.ndarray], order: list[int], temperature: float,
+         n_samples: int = 2000) -> float:
+    """PL log loss of `order`; with finish probabilities q, the two-stage version."""
+    if q is None:
+        return pl_neg_loglik(pred, order, temperature)
+    from src.models.two_stage import top_k_nll
+    return top_k_nll(pred, q, order, temperature, n_samples=n_samples)
+
+
+def fit_temperature(pred: np.ndarray, df: pd.DataFrame, q: Optional[np.ndarray] = None) -> float:
+    """T minimising mean top-3 log loss over the races in df."""
     races = _race_orders(df)
     if not races:
         return 1.0
-    losses = [np.mean([pl_neg_loglik(pred[idx], top, t) for _, idx, top in races]) for t in T_GRID]
+    losses = [
+        np.mean([_nll(pred[idx], None if q is None else q[idx], top, t, n_samples=500)
+                 for _, idx, top in races])
+        for t in T_GRID
+    ]
     return float(T_GRID[int(np.argmin(losses))])
 
 
-def score_races(df: pd.DataFrame, pred: np.ndarray, temperature: float) -> pd.DataFrame:
-    """Per-race scores for predicted positions `pred` aligned with df rows."""
+def score_races(df: pd.DataFrame, pred: np.ndarray, temperature: float,
+                q: Optional[np.ndarray] = None) -> pd.DataFrame:
+    """Per-race scores for predicted positions `pred` (and finish probabilities q) aligned with df rows."""
     rows = []
     for (year, rnd), idx, top in _race_orders(df):
         p = pred[idx]
-        pick = np.argsort(p, kind="stable")
+        qq = None if q is None else q[idx]
+        if qq is None:
+            pick = np.argsort(p, kind="stable")
+            podium = pick[:3]
+        else:
+            from src.models.two_stage import simulate
+            m = simulate(p, qq, temperature, n_sims=5000, seed=0)
+            pick = np.argsort(-m[:, 0], kind="stable")
+            podium = np.argsort(-m[:, :3].sum(axis=1), kind="stable")[:3]
         rows.append({
             "year": int(year),
             "round": int(rnd),
-            "ll_winner": pl_neg_loglik(p, top[:1], temperature),
-            "ll_top3": pl_neg_loglik(p, top, temperature),
+            "ll_winner": _nll(p, qq, top[:1], temperature),
+            "ll_top3": _nll(p, qq, top, temperature),
             "winner_hit": bool(pick[0] == top[0]),
-            "podium_overlap": len(set(pick[:3]) & set(top)),
+            "podium_overlap": len(set(podium) & set(top)),
         })
     return pd.DataFrame(rows)
 
@@ -123,6 +145,28 @@ def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> Pr
     return _predict
 
 
+def make_two_stage_predict(cols: list[str], use_finish_model: bool = True) -> PredictFn:
+    """Phase 3: pace ranker trained on finishers only (+ finish model for P(finish)).
+
+    use_finish_model=False isolates stage 2: the finishers-only ranker scored as if
+    every car finishes.
+    """
+    from src.models.xgb_model import TwoStageRaceModel
+
+    def _predict(train: pd.DataFrame, test: pd.DataFrame):
+        model = TwoStageRaceModel()
+        model.fit(train[cols], train["target_position"].values,
+                  sample_weight=compute_recency_sample_weight(train["year"].values),
+                  qid=(train["year"] * 100 + train["round"]).to_numpy(),
+                  dnf=pd.to_numeric(train["dnf"], errors="coerce").fillna(0).to_numpy())
+        pred = model.predict(test[cols])
+        if not use_finish_model:
+            return pred
+        return pred, model.predict_finish(test[cols])
+
+    return _predict
+
+
 def grid_predict(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
     """Grid-only 'model': predicted position = starting grid."""
     out = np.empty(len(test))
@@ -146,22 +190,25 @@ def walk_forward(
     """
     fm = fm.reset_index(drop=True)
     results = []
-    prev: Optional[tuple[np.ndarray, pd.DataFrame]] = None
+    prev: Optional[tuple] = None
     for year in test_years:
         train = fm[fm["year"] < year].reset_index(drop=True)
         test = fm[fm["year"] == year].reset_index(drop=True)
         if train.empty or test.empty:
             continue
-        pred = predict(train, test)
+        out = predict(train, test)
+        # Two-stage models return (pred, finish probabilities)
+        pred, q = out if isinstance(out, tuple) else (out, None)
         if fit_t_on_train:
             t = fit_temperature(predict(train, train), train)
         else:
             t = fit_temperature(*prev) if prev is not None else 1.0
-        prev = (pred, test)
+        prev = (pred, test, q)
 
-        scores = score_races(test, pred, t)
+        scores = score_races(test, pred, t, q)
         scores["ll_winner_t1"] = [
-            pl_neg_loglik(pred[idx], top[:1], 1.0) for _, idx, top in _race_orders(test)
+            _nll(pred[idx], None if q is None else q[idx], top[:1], 1.0)
+            for _, idx, top in _race_orders(test)
         ]
         scores["temperature"] = t
         scores["variant"] = name

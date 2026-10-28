@@ -1,8 +1,8 @@
 {
- "updated_at": "2026-10-28T16:34:40Z",
+ "updated_at": "2026-10-28T16:47:09Z",
  "season": 2026,
  "model": {
-  "trained_at": "2026-10-28T16:33:27.189653+00:00",
+  "trained_at": "2026-10-28T16:46:24.604555+00:00",
   "train_years": [
    2014,
    2025
@@ -12,25 +12,25 @@
    2026
   ],
   "holdout_races": 42,
-  "winner_accuracy": 0.5714285714285714,
-  "podium_accuracy": 0.6904761904761906,
-  "spearman": 0.6600680838176751,
+  "winner_accuracy": 0.6428571428571429,
+  "podium_accuracy": 0.7063492063492064,
+  "spearman": 0.6587249461881696,
   "importance": [
    {
     "group": "qualifying",
-    "share": 0.476
+    "share": 0.465
    },
    {
     "group": "driver",
-    "share": 0.316
+    "share": 0.329
    },
    {
     "group": "car",
-    "share": 0.082
+    "share": 0.08
    },
    {
     "group": "championship",
-    "share": 0.046
+    "share": 0.053
    },
    {
     "group": "circuit",
@@ -38,15 +38,15 @@
    },
    {
     "group": "weather",
-    "share": 0.023
+    "share": 0.024
    },
    {
     "group": "reliability",
-    "share": 0.015
+    "share": 0.01
    },
    {
     "group": "sprint",
-    "share": 0.01
+    "share": 0.008
    }
   ]
  },
@@ -84,6 +84,7 @@
     "p_win": 0.5819,
     "p_podium": 0.9647,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 1
    },
    {
@@ -93,6 +94,7 @@
     "p_win": 0.189,
     "p_podium": 0.755,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 3
    },
    {
@@ -102,6 +104,7 @@
     "p_win": 0.0853,
     "p_podium": 0.4601,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 6
    },
    {
@@ -111,6 +114,7 @@
     "p_win": 0.0791,
     "p_podium": 0.4328,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 4
    },
    {
@@ -120,6 +124,7 @@
     "p_win": 0.0423,
     "p_podium": 0.2658,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 2
    },
    {
@@ -129,6 +134,7 @@
     "p_win": 0.0133,
     "p_podium": 0.0723,
     "p_top10": 1.0,
+    "p_finish": null,
     "finish": 8
    },
    {
@@ -138,6 +144,7 @@
     "p_win": 0.0061,
     "p_podium": 0.0321,
     "p_top10": 0.9997,
+    "p_finish": null,
     "finish": 7
    },
    {
@@ -147,6 +154,7 @@
     "p_win": 0.0022,
     "p_podium": 0.0129,
     "p_top10": 0.9978,
+    "p_finish": null,
     "finish": 5
    },
    {
@@ -156,6 +164,7 @@
     "p_win": 0.0004,
     "p_podium": 0.0023,
     "p_top10": 0.8926,
+    "p_finish": null,
     "finish": 9
    },
    {
@@ -165,6 +174,7 @@
     "p_win": 0.0004,
     "p_podium": 0.0018,
     "p_top10": 0.8614,
+    "p_finish": null,
     "finish": 12
    },
    {
@@ -174,6 +184,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0169,
+    "p_finish": null,
     "finish": 21
    },
    {
@@ -183,6 +194,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0145,
+    "p_finish": null,
     "finish": 10
    },
    {
@@ -192,6 +204,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0106,
+    "p_finish": null,
     "finish": 16
    },
    {
@@ -201,6 +214,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0033,
+    "p_finish": null,
     "finish": 15
    },
    {
@@ -210,6 +224,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.033,
+    "p_finish": null,
     "finish": 13
    },
    {
@@ -219,6 +234,7 @@
     "p_win": 0.0,
     "p_podium": 0.0001,
     "p_top10": 0.0918,
+    "p_finish": null,
     "finish": 11
    },
    {
@@ -228,6 +244,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0022,
+    "p_finish": null,
     "finish": 20
    },
    {
@@ -237,6 +254,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0026,
+    "p_finish": null,
     "finish": 19
    },
    {
@@ -246,6 +264,7 @@
     "p_win": 0.0,
     "p_podium": 0.0001,
     "p_top10": 0.0445,
+    "p_finish": null,
     "finish": 22
    },
    {
@@ -255,6 +274,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.019,
+    "p_finish": null,
     "finish": 14
    },
    {
@@ -264,6 +284,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0054,
+    "p_finish": null,
     "finish": 17
    },
    {
@@ -273,6 +294,7 @@
     "p_win": 0.0,
     "p_podium": 0.0,
     "p_top10": 0.0047,
+    "p_finish": null,
     "finish": 18
    }
   ]

@@ -1,9 +1,10 @@
 """
-Quick training script — v3 (learning-to-rank + Plackett-Luce).
+Quick training script — v4 (two-stage: finish probability + pace ranker).
 
-Trains an XGBRaceRanker (NDCG, one group per race) and fits its Plackett-Luce
-temperature on a season it did not train on. Evaluation uses PlackettLuceSampler
-to convert predictions to coherent podium probabilities before computing metrics.
+Trains a TwoStageRaceModel: an XGBoost NDCG ranker on finishers only plus a
+finish-probability model, and fits the Plackett-Luce temperature on a season it
+did not train on. Evaluation simulates races with retirements
+(src.models.two_stage.simulate) before computing metrics.
 Model choice: scripts/backtest.py (walk-forward 2018-2026).
 
 Two-pass strategy:
@@ -29,12 +30,18 @@ from src.models.model_registry import (  # noqa: E402
 )
 
 
-MODEL_FAMILY = "xgb_rank_v3"
+MODEL_FAMILY = "two_stage_v4"
 
 
 def _race_ids(df) -> "np.ndarray":
     """One query id per race for the ranker."""
     return (df["year"] * 100 + df["round"]).to_numpy()
+
+
+def _dnf(df) -> "np.ndarray":
+    """1 for retired cars (the pace ranker trains on finishers only)."""
+    import pandas as pd
+    return pd.to_numeric(df["dnf"], errors="coerce").fillna(0).to_numpy()
 
 
 def _load_tuned_params(use_tuned: bool) -> "dict | None":
@@ -80,7 +87,8 @@ def main() -> None:
     from src.data_collection.weather import load_weather_history
     from src.features.build_features import FEATURE_COLS, build_feature_matrix, save_feature_matrix
     from src.models.plackett_luce import PlackettLuceSampler
-    from src.models.xgb_model import XGBRaceRanker
+    from src.models.two_stage import simulate
+    from src.models.xgb_model import TwoStageRaceModel
     from src.training.evaluate import evaluate_race_predictions
     from src.training.weights import compute_recency_sample_weight
 
@@ -165,9 +173,9 @@ def main() -> None:
     if args.use_tuned_params:
         logger.warning("--use-tuned-params holds regressor params; the v3 ranker ignores them")
 
-    logger.info("Training evaluation XGBRaceRanker...")
-    model = XGBRaceRanker()
-    model.fit(X_train, y_train, sample_weight=train_weight, qid=_race_ids(train_df))
+    logger.info("Training evaluation TwoStageRaceModel...")
+    model = TwoStageRaceModel()
+    model.fit(X_train, y_train, sample_weight=train_weight, qid=_race_ids(train_df), dnf=_dnf(train_df))
     # Plackett-Luce temperature from the calibration season (not in training)
     cal_df = fm[fm["year"].isin(cal_years)].reset_index(drop=True)
     if not cal_df.empty:
@@ -182,8 +190,9 @@ def main() -> None:
     if len(test_df) > 0:
         X_test = pd.DataFrame(test_df[FEATURE_COLS].values, columns=FEATURE_COLS)
         pred_positions = model.predict(X_test)
+        finish_probs = model.predict_finish(X_test)
 
-        metrics, race_res = evaluate_race_predictions(test_df, pred_positions, sampler)
+        metrics, race_res = evaluate_race_predictions(test_df, pred_positions, sampler, finish_probs)
         winner_acc_for_manifest = metrics["winner_accuracy"]
 
         metrics["holdout_years"] = holdout_years
@@ -204,7 +213,7 @@ def main() -> None:
         for (year, rnd), group in test_df.reset_index(drop=True).groupby(["year", "round"]):
             idx = group.index
             race_pred = pred_positions[idx]
-            mat = sampler.simulate(race_pred)
+            mat = simulate(race_pred, finish_probs[idx], 1.0, n_sims=sampler.n_simulations)
             all_p1_preds[idx] = mat[:, 0]
 
         p1_true = test_df["p1"].values
@@ -267,8 +276,9 @@ def main() -> None:
     y_prod = prod_train_df["target_position"].values
     prod_weight = compute_recency_sample_weight(prod_train_df["year"].values)
 
-    prod_model = XGBRaceRanker()
-    prod_model.fit(X_prod, y_prod, sample_weight=prod_weight, qid=_race_ids(prod_train_df))
+    prod_model = TwoStageRaceModel()
+    prod_model.fit(X_prod, y_prod, sample_weight=prod_weight, qid=_race_ids(prod_train_df),
+                   dnf=_dnf(prod_train_df))
     # Temperature from the latest season, which production does not train on
     prod_cal_df = fm[fm["year"].isin(prod_cal_years)].reset_index(drop=True)
     if not prod_cal_df.empty:
@@ -276,7 +286,7 @@ def main() -> None:
             pd.DataFrame(prod_cal_df[FEATURE_COLS].values, columns=FEATURE_COLS), prod_cal_df
         )
     prod_model.save("xgb_race")
-    logger.info("Production XGBRaceRanker saved -> models/xgb_race.pkl")
+    logger.info("Production TwoStageRaceModel saved -> models/xgb_race.pkl")
 
     write_active_model_metadata(
         model_family=MODEL_FAMILY,

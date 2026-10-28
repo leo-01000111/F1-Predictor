@@ -278,14 +278,21 @@ def run_inference(
     from src.models.xgb_model import XGBRacePredictor
 
     model = XGBRacePredictor.load("xgb_race")
-    pred_positions = model.predict(pd.DataFrame(X, columns=FEATURE_COLS))
+    X_df = pd.DataFrame(X, columns=FEATURE_COLS)
+    pred_positions = model.predict(X_df)
     logger.info(
         f"Predicted positions: {dict(zip(feat_df['driver'].tolist(), pred_positions.round(2).tolist()))}"
     )
+    # v4 two-stage model: P(finish) per car; older models assume every car finishes
+    finish_probs = model.predict_finish(X_df) if hasattr(model, "predict_finish") else None
 
-    # 6. Plackett-Luce simulation → coherent position probabilities
+    # 6. Race simulation → coherent position probabilities
     sampler = PlackettLuceSampler(temperature=1.0, n_simulations=10_000)
-    prob_matrix = sampler.simulate(pred_positions)  # (n_drivers, n_drivers)
+    if finish_probs is not None:
+        from src.models.two_stage import simulate
+        prob_matrix = simulate(pred_positions, finish_probs, 1.0, n_sims=sampler.n_simulations)
+    else:
+        prob_matrix = sampler.simulate(pred_positions)  # (n_drivers, n_drivers)
     n_pos = prob_matrix.shape[1]
     probs: dict[str, np.ndarray] = {
         "p1": prob_matrix[:, 0],
@@ -310,6 +317,7 @@ def run_inference(
                 "p_podium": float(round(min(probs["p1"][i] + probs["p2"][i] + probs["p3"][i], 1.0), 4)),
                 "p_top6": float(round(min(probs["p_top6"][i], 1.0), 4)),
                 "p_top10": float(round(min(probs["p_top10"][i], 1.0), 4)),
+                "p_finish": None if finish_probs is None else float(round(finish_probs[i], 4)),
             }
         )
 
@@ -329,7 +337,8 @@ def run_inference(
             "family": active_model.get("model_family", "xgb_rank_v3"),
             "artifact": "xgb_race.pkl",
             "sampler": (
-                f"plackett_luce(T={getattr(model, 'temperature', 1.0)}, n_sim={sampler.n_simulations})"
+                f"{'two_stage' if finish_probs is not None else 'plackett_luce'}"
+                f"(T={getattr(model, 'temperature', 1.0)}, n_sim={sampler.n_simulations})"
             ),
             "active_manifest": active_model,
         },

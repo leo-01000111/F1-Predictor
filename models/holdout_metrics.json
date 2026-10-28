@@ -1,11 +1,11 @@
 {
-  "winner_accuracy": 0.5714285714285714,
-  "podium_accuracy": 0.6904761904761906,
-  "brier_p1": 0.029376741051428568,
-  "mean_spearman_r": 0.6600680838176751,
-  "mean_mae_position": 8.724129398273478,
+  "winner_accuracy": 0.6428571428571429,
+  "podium_accuracy": 0.7063492063492064,
+  "brier_p1": 0.026444592685714287,
+  "mean_spearman_r": 0.6587249461881696,
+  "mean_mae_position": 8.211564751353597,
   "n_holdout_races": 42,
-  "mean_log_loss_winner": 1.2604838000048935,
+  "mean_log_loss_winner": 1.0955816539375687,
   "baselines": {
     "winner_accuracy_pole": 0.6904761904761905,
     "podium_accuracy_grid_top3": 0.6984126984126985,
@@ -31,5 +31,5 @@
     2022,
     2023
   ],
-  "temperature": 1.106
+  "temperature": 0.931
 }
