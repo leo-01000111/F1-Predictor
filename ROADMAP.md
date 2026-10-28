@@ -39,8 +39,10 @@ Nothing later means anything until the data is complete and the model is measure
       predict.py and the site export; stored parquets rewritten.
 - [ ] If the retrained model still loses to the grid: test monotone constraint on grid position,
       check whether form/history features override the grid, try grid-only + quali gap model.
-- [ ] Known skews (from TODO): sprint result missing at live inference, grid penalties unknown,
-      `driver_wet_avg_finish` one race behind.
+- [x] Known skews: sprint result now fetched live (Jolpica), official starting grid from OpenF1
+      with a re-prediction when penalties change it, pit-lane starts (grid 0) moved behind the
+      last slot. 2026-10-28: top-3 log loss 4.648 -> 4.595.
+- [ ] `driver_wet_avg_finish` one race behind at inference.
 - [ ] Update CLAUDE.md: it still describes per-target binary classifiers + isotonic calibrator.
 
 **Done when:** data complete for 2014-2026, team names canonical, and the model beats both grid
@@ -87,7 +89,7 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
 - [x] **Two-stage model, SHIPPED** (`TwoStageRaceModel`, production): logistic P(finish) on
       reliability, circuit, grid and weather features; NDCG ranker on finishers only; combined by
       simulation (exact likelihood for scoring). Top-3 log loss 4.648 vs 4.861 for the v3 ranker
-      (-0.225 [-0.351, -0.114]) and 5.296 for the grid. The finishers-only ranker alone gave
+      (-0.225 [-0.351, -0.114]) and 5.296 for the grid; 4.595 after the pit-lane grid fix. The finishers-only ranker alone gave
       nothing (4.888): the gain is from P(finish). Holdout 2025-26: winner 64.3%, podium 70.6%.
 - [x] Driver + team strength ratings (`src/features/strength_ratings.py`): PL-gradient updates,
       team reset at regulation changes (2014, 2017, 2022, 2026), driver skill carried over, rookies

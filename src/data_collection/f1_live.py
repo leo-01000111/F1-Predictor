@@ -775,6 +775,69 @@ def get_start_compounds(year: int, round_num: int) -> dict[str, str]:
         return {}
 
 
+def get_starting_grid(year: int, round_num: int) -> dict[str, int]:
+    """
+    Official starting grid (after grid penalties) via OpenF1 starting_grid.
+
+    Returns {driver_abbr: grid_position}. Training uses the race's actual grid,
+    so inference should too; the qualifying order misses penalties and the
+    places other drivers gain from them. Returns {} when OpenF1 has not
+    published the grid yet; the caller then falls back to the qualifying order.
+    Drivers missing from the grid (pit-lane starts) are left to the caller.
+    """
+    session = get_session_by_round(year, round_num, "Qualifying")
+    if not session:
+        return {}
+    try:
+        grid = _get("starting_grid", {"meeting_key": session["meeting_key"]})
+        drivers_raw = _get("drivers", {"session_key": session["session_key"]})
+    except Exception as exc:
+        logger.warning(f"Could not fetch the starting grid for {year} R{round_num}: {exc}")
+        return {}
+    driver_map = {int(d["driver_number"]): str(d.get("name_acronym", "")) for d in drivers_raw
+                  if d.get("driver_number") is not None}
+    result = {
+        driver_map[int(g["driver_number"])]: int(g["position"])
+        for g in grid
+        if g.get("position") and g.get("driver_number") is not None and int(g["driver_number"]) in driver_map
+    }
+    logger.info(f"Starting grid for {year} R{round_num}: {len(result)} drivers")
+    return result
+
+
+def get_live_sprint_results(year: int, round_num: int) -> pd.DataFrame:
+    """
+    Sprint classification via Jolpica, in sprint_results.parquet's columns.
+
+    The sprint runs before qualifying, but the parquet is only updated after
+    the race (ci_tick ingest), so without this every live sprint-weekend
+    prediction saw the neutral 0.5 instead of the sprint result.
+    Empty on normal weekends or before the result is published.
+    """
+    url = f"https://api.jolpi.ca/ergast/f1/{year}/{round_num}/sprint.json?limit=100"
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        races = resp.json()["MRData"]["RaceTable"]["Races"]
+    except Exception as exc:
+        logger.warning(f"Could not fetch the sprint result for {year} R{round_num}: {exc}")
+        return pd.DataFrame()
+    results = races[0].get("SprintResults", []) if races else []
+    rows = [
+        {
+            "year": year,
+            "round": round_num,
+            "driver": r["Driver"].get("code", ""),
+            "sprint_position": int(r["position"]),
+            "n_sprint_starters": len(results),
+        }
+        for r in results
+    ]
+    if rows:
+        logger.info(f"Sprint result for {year} R{round_num}: {len(rows)} drivers")
+    return pd.DataFrame(rows)
+
+
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #

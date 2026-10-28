@@ -14,6 +14,10 @@ than needed is harmless.
   2. predict  Qualifying for the next race ended >= QUALI_DELAY ago, the race
               has not started, and there is no prediction file: run
               race_weekend_inference.
+     regrid   There is a prediction and the race has not started: re-predict
+              if the official starting grid (grid penalties) now differs from
+              the grid the prediction used. Penalties are often confirmed after
+              the first prediction, and training sees the post-penalty grid.
   3. export   Always: write site/f1-predictions.json for the website.
 
 Lap-1 extras are not collected: FastF1 lap data now needs an F1 login (401).
@@ -133,8 +137,9 @@ def predict(year: int, events: list[dict], now: datetime, dry_run: bool) -> bool
     pred = PRED_DIR / f"{year}_R{ev['round']:02d}.json"
     ready = ev["quali"] + QUALI_LENGTH + QUALI_DELAY
     if pred.exists():
-        print(f"predict: R{ev['round']} {ev['name']} already predicted")
-        return True
+        print(f"predict: R{ev['round']} {ev['name']} already predicted, checking the starting grid")
+        return _run(["scripts/race_weekend_inference.py", "--year", str(year), "--round", str(ev["round"]),
+                     "--only-if-grid-changed"], dry_run)
     if now < ready:
         print(f"predict: R{ev['round']} {ev['name']} waits for qualifying (ready {ready:%Y-%m-%d %H:%M} UTC)")
         return True

@@ -156,6 +156,20 @@ ID_COLS = ["year", "round", "circuit_key", "race_date", "driver", "team"]
 CATEGORICAL_COLS = ["driver", "team", "circuit_key"]
 
 
+def pit_lane_to_back(df: pd.DataFrame) -> pd.DataFrame:
+    """Pit-lane starts (grid 0 in the results) start behind the last grid slot.
+
+    Left as 0 they looked like better than pole to every grid feature.
+    """
+    if "grid_position" not in df.columns:
+        return df
+    df = df.copy()
+    gp = pd.to_numeric(df["grid_position"], errors="coerce")
+    last = gp.where(gp > 0).groupby([df["year"], df["round"]]).transform("max")
+    df["grid_position"] = gp.mask(gp == 0, last + 1)
+    return df
+
+
 def build_feature_matrix(
     race_df: pd.DataFrame,
     quali_df: pd.DataFrame,
@@ -173,7 +187,7 @@ def build_feature_matrix(
     # Canonical track IDs and team names first, so circuit history, the circuit
     # lookups and team features use the same keys as inference
     # (see src/features/circuits.py and src/features/teams.py).
-    df = canonicalize_teams(canonicalize_circuits(race_df))
+    df = pit_lane_to_back(canonicalize_teams(canonicalize_circuits(race_df)))
 
     # Driver + team strength ratings (Phase 3). Computed as extra columns;
     # not in FEATURE_COLS until the backtest shows they help.

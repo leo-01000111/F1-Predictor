@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-28T16:46:24.604555+00:00",
+  "generated_at": "2026-10-28T18:48:58.436692+00:00",
   "model_family": "two_stage_v4",
   "model_artifact": "xgb_race.pkl",
   "calibrator_artifact": null,
@@ -24,7 +24,7 @@
     2025,
     2026
   ],
-  "winner_accuracy_holdout": 0.6428571428571429,
+  "winner_accuracy_holdout": 0.7142857142857143,
   "source": "quick_train.py",
   "feature_count": 33,
   "feature_cols": [

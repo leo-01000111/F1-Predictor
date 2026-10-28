@@ -20,6 +20,11 @@ Usage:
     # Dry run with a past race (for testing):
     python scripts/race_weekend_inference.py --year 2024 --round 10 --dry-run
 
+    # Re-predict only if the official starting grid (penalties) now differs
+    # from the grid the existing prediction used (ci_tick runs this hourly
+    # until the race starts):
+    python scripts/race_weekend_inference.py --year 2026 --round N --only-if-grid-changed
+
     # After the race -- record actuals:
     python scripts/update_race_result.py --year 2026 --round N
 """
@@ -38,19 +43,51 @@ sys.path.insert(0, str(ROOT))
 from loguru import logger
 
 
+def _grid_changed(year: int, round_num: int, starting_grid: dict[str, int]) -> bool:
+    """True if the published starting grid differs from the existing prediction's grid."""
+    import json
+
+    path = ROOT / "data" / "predictions" / f"{year}_R{round_num:02d}.json"
+    if not path.exists():
+        return True
+    if not starting_grid:
+        logger.info("Starting grid not published yet; keeping the existing prediction")
+        return False
+    with open(path, encoding="utf-8") as f:
+        doc = json.load(f)
+    used = {p["driver"]: p.get("grid_position") for p in doc.get("predictions", [])}
+    # Off the published grid = pit-lane start, which inference puts at the back
+    pit_lane = max(starting_grid.values()) + 1
+    changed = {d: (g, starting_grid.get(d, pit_lane)) for d, g in used.items() if g != starting_grid.get(d, pit_lane)}
+    if changed:
+        logger.info(f"Starting grid differs from the prediction's grid (driver: old, new): {changed}")
+    else:
+        logger.info("Starting grid matches the existing prediction; nothing to do")
+    return bool(changed)
+
+
 def main(
     year: int,
     round_num: int,
     dry_run: bool = False,
+    only_if_grid_changed: bool = False,
 ) -> None:
 
     from src.data_collection.f1_live import (
         get_live_quali_dataframe,
         get_completed_season_race_results,
+        get_live_sprint_results,
+        get_starting_grid,
     )
     from src.data_collection.weather import get_race_day_forecast
     from src.data_collection.f1_historical import load_race_results, load_pit_stops, load_sprint_results
     from src.inference.predict import run_inference
+
+    # Official grid after penalties; {} until OpenF1 publishes it (then the
+    # qualifying order is used and the CI re-checks before the race)
+    starting_grid = get_starting_grid(year, round_num)
+    if only_if_grid_changed and not _grid_changed(year, round_num, starting_grid):
+        return
 
     # ------------------------------------------------------------------ #
     # 1. Load historical race data (for form/circuit features)
@@ -166,6 +203,12 @@ def main(
     except FileNotFoundError:
         logger.info("No sprint_results.parquet; sprint_position_rel will be 0.5. "
                     "Run: python scripts/backfill_pit_sprint.py --sprint --merge")
+    # This weekend's sprint ran before qualifying but is only ingested after the race
+    has_sprint = sprint_df is not None and ((sprint_df["year"] == year) & (sprint_df["round"] == round_num)).any()
+    if not has_sprint:
+        live_sprint = get_live_sprint_results(year, round_num)
+        if not live_sprint.empty:
+            sprint_df = pd.concat([sprint_df, live_sprint], ignore_index=True) if sprint_df is not None else live_sprint
 
     logger.info("Running model inference...")
     result = run_inference(
@@ -176,6 +219,7 @@ def main(
         weather_dict=weather_dict,
         pit_df=pit_df,
         sprint_df=sprint_df,
+        starting_grid=starting_grid,
     )
 
     # ------------------------------------------------------------------ #
@@ -201,11 +245,14 @@ if __name__ == "__main__":
     parser.add_argument("--year", type=int, required=True, help="Race year (e.g. 2026)")
     parser.add_argument("--round", type=int, required=True, dest="round_num", help="Round number")
     parser.add_argument("--dry-run", action="store_true", help="Print data without running model")
+    parser.add_argument("--only-if-grid-changed", action="store_true",
+                        help="Re-predict only if the official starting grid differs from the existing prediction's")
     args = parser.parse_args()
 
     main(
         year=args.year,
         round_num=args.round_num,
         dry_run=args.dry_run,
+        only_if_grid_changed=args.only_if_grid_changed,
     )
 

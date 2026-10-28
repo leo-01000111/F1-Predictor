@@ -31,13 +31,18 @@ def run_inference(
     weather_dict: dict,
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
+    starting_grid: Optional[dict[str, int]] = None,
 ) -> dict:
     """
     Build features and generate race predictions.
 
     Returns a prediction document and writes data/predictions/{year}_R{round}.json.
+
+    starting_grid ({driver: grid slot}, f1_live.get_starting_grid) is the
+    official grid after penalties, which is what training saw as grid_position.
+    Without it the qualifying order stands in and penalties are missed.
     """
-    from src.features.build_features import FEATURE_COLS, load_feature_matrix, load_fill_values
+    from src.features.build_features import FEATURE_COLS, load_feature_matrix, load_fill_values, pit_lane_to_back
     from src.features.driver_features import (
         add_circuit_history,
         add_championship_standing,
@@ -83,8 +88,14 @@ def run_inference(
     # 1. Build synthetic upcoming race rows
     is_wet = int(bool(weather_dict.get("is_wet_race", 0)))
     upcoming_rows = []
+    # Drivers not on the published grid start from the pit lane (0 -> back, as in training)
+    use_grid = bool(starting_grid)
+    grid_source = "starting_grid" if use_grid else "qualifying"
+    logger.info(f"Grid source: {grid_source}")
     for _, row in quali_df.iterrows():
         qp = row.get("quali_position", None)
+        drv = row.get("driver_abbr", row.get("driver", ""))
+        gp = starting_grid.get(drv, 0) if use_grid else qp
         upcoming_rows.append(
             {
                 "year": year,
@@ -94,7 +105,7 @@ def run_inference(
                 "race_date": race_date,
                 "driver": row.get("driver_abbr", row.get("driver", "")),
                 "team": row.get("team", "Unknown"),
-                "grid_position": qp,
+                "grid_position": gp,
                 "quali_position_from_q": qp,
                 "finish_position": None,
                 "dnf": 0,
@@ -112,7 +123,7 @@ def run_inference(
     upcoming_df = pd.DataFrame(upcoming_rows)
 
     combined = pd.concat([race_df_history, upcoming_df], ignore_index=True)
-    combined = canonicalize_teams(canonicalize_circuits(combined)).sort_values(["year", "round"])
+    combined = pit_lane_to_back(canonicalize_teams(canonicalize_circuits(combined))).sort_values(["year", "round"])
     # Same pre-race ratings as training; the upcoming race has no result, so no update
     combined = add_strength_ratings(combined)
 
@@ -332,6 +343,7 @@ def run_inference(
         "race_date": race_date,
         "generated_at": datetime.utcnow().isoformat(),
         "weather": weather_dict,
+        "grid_source": grid_source,
         "drivers": drivers,
         "teams": teams,
         "model": {

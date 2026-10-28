@@ -1,7 +1,7 @@
 {
   "grid_position": 11.0,
   "quali_gap_relative": 0.44499999999999884,
-  "grid_position_rel": 0.47619047619047616,
+  "grid_position_rel": 0.5,
   "teammate_quali_delta": 0.0,
   "car_pace_delta_pct": 3.0,
   "driver_form_5": 11.2,
@@ -26,7 +26,7 @@
   "round_fraction": 0.5,
   "driver_elo": 1511.4709576771581,
   "driver_wet_avg_finish": 10.875,
-  "circuit_grid_conversion": 11.833333333333334,
+  "circuit_grid_conversion": 12.0,
   "championship_pressure": 0.48363636363636364,
   "team_form_5": 8.6,
   "grid_penalty_places": 0.0,
