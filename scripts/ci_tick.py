@@ -21,6 +21,9 @@ than needed is harmless.
               if the official starting grid (grid penalties) now differs from
               the grid the prediction used. Penalties are often confirmed after
               the first prediction, and training sees the post-penalty grid.
+     market   From qualifying to lights out: snapshot the live Kalshi win and
+              podium books for the race (data/raw/kalshi_snapshots.parquet).
+              The last one before the start is the exact pre-start price.
   3. export   Always: write site/f1-predictions.json for the website.
 
 Lap-1 extras are not collected: FastF1 lap data now needs an F1 login (401).
@@ -212,6 +215,27 @@ def _ingested_rounds(year: int) -> set[int]:
     return set(r.loc[r["year"] == year, "round"].astype(int))
 
 
+def market_snapshot(year: int, events: list[dict], now: datetime) -> None:
+    """From qualifying to lights out: save the live Kalshi books of the next race.
+
+    The last snapshot before the start is the pre-start market price for the
+    model/market blend (ROADMAP idea 3). Logging only: never fails the tick.
+    """
+    ev = next((e for e in events if e["quali"] <= now < e["race"]), None)
+    if ev is None:
+        return
+    try:
+        from src.data_collection.kalshi_odds import snapshot
+
+        summary = snapshot(year, ev["round"], ev["race"], now)
+        ci_log.event("market_snapshot", round=ev["round"], **summary)
+        print(f"market: R{ev['round']} {summary.get('rows')} Kalshi quotes, "
+              f"{summary.get('minutes_to_race')} min to the start", flush=True)
+    except Exception as exc:
+        ci_log.event("market_snapshot", round=ev["round"], error=str(exc)[:300])
+        print(f"market: snapshot failed: {exc}", flush=True)
+
+
 def ingest(year: int, done_races: list[dict], now: datetime, dry_run: bool) -> bool:
     before = _ingested_rounds(year)
     missing = [e for e in done_races if e["round"] not in before]
@@ -341,6 +365,9 @@ def main() -> None:
         done = [e for e in events if e["race"] + RESULTS_DELAY <= now]
         ok &= ingest(year, done, now, args.dry_run)
         ok &= predict(year, events, now, args.dry_run)
+        # Live books only make sense at the real time: not in dry runs or simulated ticks
+        if not args.dry_run and not args.now:
+            market_snapshot(year, events, now)
     old_site = _digest(SITE_JSON)
     ok &= _run(["scripts/export_site_json.py", "--year", str(year)], args.dry_run, "export")
     ci_log.event("data", what="site_json", changed=_digest(SITE_JSON) != old_site)

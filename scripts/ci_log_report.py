@@ -95,6 +95,16 @@ def main() -> None:
         if e["kind"] == "data" and e.get("what") == "result_vs_prediction" and e.get("round") == args.rnd:
             print(f"  {e['ts']}  scored against the result: {e.get('accuracy')}")
 
+    print("\nKalshi snapshots (win market top 3):")
+    for e in rows:
+        if e["kind"] == "market_snapshot" and e.get("round") == args.rnd:
+            if e.get("error"):
+                print(f"  {e['ts']}  ERROR {e['error'][:120]}")
+                continue
+            top = (e.get("win") or {}).get("top3", [])
+            print(f"  {e['ts']}  {e.get('minutes_to_race'):>7} min to start  "
+                  + ", ".join(f"{d} {p:.0%}" for d, p in top))
+
 
 if __name__ == "__main__":
     main()

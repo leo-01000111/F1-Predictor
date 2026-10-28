@@ -111,9 +111,10 @@ def price_from_quote(bid: Optional[float], ask: Optional[float], last: Optional[
     """Mid of a usable book; else the last trade; else None.
 
     An empty book (bid 0, ask ~1) gives no information: its midpoint (~0.5)
-    must never be used as a price.
+    must never be used as a price; the spread limit rejects it. A long shot's
+    book (bid 0, ask 0.01) is usable: 0.005, not a stale last trade of 0.10.
     """
-    if bid is not None and ask is not None and bid > 0 and 0 < ask - bid <= MAX_SPREAD:
+    if bid is not None and ask is not None and bid >= 0 and 0 < ask - bid <= MAX_SPREAD:
         return (bid + ask) / 2
     if last is not None and last > 0:
         return last
@@ -204,6 +205,58 @@ def collect(existing: Optional[pd.DataFrame] = None) -> pd.DataFrame:
 
 def load_kalshi_odds() -> pd.DataFrame:
     return pd.read_parquet(OUT_PATH)
+
+
+SNAP_PATH = RAW_DIR / "kalshi_snapshots.parquet"
+
+
+def _f(v) -> Optional[float]:
+    return float(v) if v not in (None, "") else None
+
+
+def snapshot(year: int, rnd: int, race_utc: datetime, now: Optional[datetime] = None) -> dict:
+    """Live order book of the round's open win/podium markets, appended to SNAP_PATH.
+
+    ci_tick calls this every tick from qualifying to lights out (ROADMAP idea 3:
+    a pre-start model/market blend). collect() rebuilds prices from hourly
+    candles afterwards; these are the books as they were, with the exact time,
+    so the last snapshot before the start is the real pre-start price.
+    Returns a summary for the CI log.
+    """
+    now = now or datetime.now(timezone.utc)
+    sched = _schedule(year)
+    codes = _driver_codes(year)
+    rows, summary = [], {}
+    for market, series in SERIES.items():
+        for ev in _paged("/events", "events", {"series_ticker": series, "status": "open"}):
+            markets = _paged("/markets", "markets", {"event_ticker": ev["event_ticker"]})
+            if not markets:
+                continue
+            occ_s = markets[0].get("occurrence_datetime") or markets[0].get("expected_expiration_time")
+            if _match_round(datetime.fromisoformat(occ_s.replace("Z", "+00:00")), sched) != rnd:
+                continue
+            for m in markets:
+                name = m.get("yes_sub_title") or m.get("no_sub_title") or ""
+                bid, ask, last = _f(m.get("yes_bid_dollars")), _f(m.get("yes_ask_dollars")), _f(m.get("last_price_dollars"))
+                rows.append({
+                    "ts": now, "year": year, "round": rnd, "market": market, "event": ev["event_ticker"],
+                    "ticker": m["ticker"], "name": name, "driver": _code(name, codes),
+                    "bid": bid, "ask": ask, "last": last, "price": price_from_quote(bid, ask, last),
+                    "volume_24h": _f(m.get("volume_24h_fp")), "open_interest": _f(m.get("open_interest_fp")),
+                    "minutes_to_race": round((race_utc - now).total_seconds() / 60, 1),
+                    "status": m.get("status"),
+                })
+            top = sorted((r for r in rows if r["market"] == market and r["price"] is not None),
+                         key=lambda r: -r["price"])[:3]
+            summary[market] = {"event": ev["event_ticker"], "n": len(markets),
+                               "top3": [(r["driver"], r["price"]) for r in top]}
+    if rows:
+        new = pd.DataFrame(rows)
+        old = pd.read_parquet(SNAP_PATH) if SNAP_PATH.exists() else None
+        out = pd.concat([old, new], ignore_index=True) if old is not None else new
+        SNAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+        out.to_parquet(SNAP_PATH, index=False)
+    return {"rows": len(rows), "minutes_to_race": round((race_utc - now).total_seconds() / 60, 1), **summary}
 
 
 if __name__ == "__main__":

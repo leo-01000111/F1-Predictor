@@ -164,6 +164,18 @@ needs an account). F1 race markets exist from 2025: winner (`KXF1RACE`) and podi
 - [x] Benter-style blend (2 weights, fitted on one season, scored on the other): not shipped.
       vs model at prediction time: winner -0.058 [-0.228, +0.134], podium +0.0003; weights flip
       between seasons (0.3/1.3 vs 1.5/0.4). With race-start prices: winner -0.145 [-0.274, +0.013].
+- [x] 2026-10-29: price fix. `price_from_quote` refused any book with a zero bid and fell back to
+      the last trade, so long shots (bid 0 / ask 0.01) were priced at stale trades (~10%). The
+      spread limit alone now rejects empty books; 1,004 of 1,748 stored quotes recomputed from
+      the saved bid/ask/last.
+- [x] Re-run with v5 and fixed prices (42 races): winner log loss model 0.944 / market 1.119 at
+      prediction time, 1.102 at race start / grid 1.369. Model vs market at race start
+      -0.158 [-0.283, -0.043]: v5 beats the market alone. Blend vs model -0.067 [-0.183, +0.082]:
+      still nothing to ship. Podium: model 0.1883 vs market 0.1871 at the start (tie).
+- [x] Live pre-start prices: ci_tick snapshots the open Kalshi win/podium books every tick from
+      qualifying to lights out (`kalshi_odds.snapshot` -> `data/raw/kalshi_snapshots.parquet`,
+      `market_snapshot` events in the CI log), plus a Sunday :48 cron so the last one lands
+      ~12 min before an on-the-hour start. Exact pre-start prices for the re-test.
 - [ ] Re-test the blend when ~2 more seasons of prices exist (CI keeps collecting). If the
       race-start blend holds up, add a final prediction update just before the start.
 - [ ] Track "model vs market" per race on the site record.

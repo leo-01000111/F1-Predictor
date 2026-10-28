@@ -12,6 +12,9 @@ on:
   schedule:
     # Hourly Saturday to Monday (UTC): qualifying, race and results publishing
     - cron: '23 * * * 6,0,1'
+    # Extra Sunday tick at :48: a Kalshi snapshot ~12 min before races that start
+    # on the hour (GitHub may run it late; the CI log records the real time)
+    - cron: '48 * * * 0'
     # Tuesday catch-up in case results were published late
     - cron: '23 6 * * 2'
   workflow_dispatch:
