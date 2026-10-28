@@ -11,6 +11,9 @@ Day-to-day status stays in `TODO_FP_MIGRATION.md`; this file is the longer plan.
 - (2026-10-28) Now: two-stage model. P(finish) per car + XGBoost NDCG ranker on finishers
   (33 features), PL temperature fitted out of sample. Beats the grid on log loss over 191
   walk-forward races by 0.65; winner picks tie with pole.
+- (2026-10-28, later) v5: same structure, 35 features (practice long-run pace), tuned ranker
+  settings, 5 seeds averaged, official starting grid live. Top-3 log loss 4.501 vs 5.296 for the
+  grid (-0.796 [-1.050, -0.570]).
 - Holdout 2025-26 (42 races), before this roadmap: winner 45.2%, podium 63.5%.
 - **The starting grid beats us on that holdout: pole sitter wins 69.0%, grid top 3 overlaps the podium 69.8%.**
 - About 26 races of 2022-23 were missing or empty in the training data (fixed in Phase 0).
@@ -119,6 +122,27 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
 
 Tools: `scripts/backtest.py` (model variants), `scripts/calibration_backtest.py` (calibration
 variants on cached two-stage predictions).
+
+### Phase 3b: more information and less variance (2026-10-28)
+
+- [x] **Ranker tuning + seed ensemble, SHIPPED** (`scripts/tune_ranker.py`). Grid over depth x
+      trees x learning rate chosen on 2018-2022 only: depth 3, 300 trees, lr 0.03 (was 4/300/0.05).
+      On 2023-2026 (88 races): -0.077 [-0.157, -0.003] with 1 seed, -0.095 [-0.175, -0.021] with
+      5 seeds averaged. Seeds alone on the old settings: +0.018 (nothing).
+- [x] **Practice long-run pace, SHIPPED** (`src/data_collection/practice_openf1.py`,
+      `src/features/practice_pace.py`, `scripts/practice_backtest.py`). OpenF1 laps 2023-2026
+      (99k laps). Per session: best long run (>= 5 clean laps) vs the session median, %, driver and
+      team (faster car). Missing before 2023, never imputed. Walk-forward 2024-2026 (66 races):
+      both features -0.029 [-0.056, -0.004], better in each season; either alone not significant
+      (best of 3 variants on the same races: weaker evidence than the tuning result). Per-race
+      Spearman with the finish 0.30 (grid 0.66): most of it is already in qualifying.
+- [x] Full walk-forward 2018-2026 (v5): top-3 log loss 4.501 (4.595 before 3b, 4.648 before the
+      live-grid fixes), winner log loss 1.191, winner hits 52.9% (pole 53.9%).
+- [x] 2026 site record replayed with v5 (`scripts/replay_season.py`): the old record was made in
+      one batch on 2026-10-27 by the archived v2 regressor. 13/18 winners, 2.0 podium drivers per
+      race. Old files in `data/predictions/archive/xgb_v2/`.
+- [ ] Compound-adjusted long runs (soft vs hard), and FP-session weighting. Re-test the practice
+      features when 2027 adds a season.
 
 ## Phase 4: the betting market
 

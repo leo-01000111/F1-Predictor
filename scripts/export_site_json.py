@@ -11,7 +11,8 @@ models/holdout_metrics.json and writes site/f1-predictions.json:
                   is none, the next race on the calendar (awaiting qualifying)
   last            the latest race with a result: prediction vs actual finish
   record          one row per predicted race with a result (season so far):
-                  predicted and actual podiums, newest last
+                  predicted and actual podiums, newest last; "replay" marks
+                  races predicted after the fact (scripts/replay_season.py)
 
 The website's update-f1.yml workflow copies this file into the site repo.
 
@@ -83,6 +84,7 @@ FEATURE_GROUPS: dict[str, list[str]] = {
     "reliability": ["dnf_rate", "team_reliability_rate"],
     "weather": ["temp_c_mean", "precip_mm_total", "windspeed_ms_mean", "humidity_pct_mean", "is_wet_race"],
     "sprint": ["sprint_position_rel"],
+    "practice": ["fp_longrun_gap_pct", "team_longrun_gap_pct"],
 }
 
 
@@ -167,8 +169,10 @@ def build(year: int) -> dict:
         res = _load(results[rnd]) or {}
         acc = res.get("accuracy") or {}
         podium_pred, podium_act, teams = _podiums(res)
+        replay = bool((_load(preds[rnd]) or {}).get("replay")) if rnd in preds else False
         record.append({
             **{k: v for k, v in race_meta(rnd, res).items() if k in ("round", "name", "location")},
+            "replay": replay,
             "winner_hit": bool(acc.get("winner_hit")),
             "podium_overlap": acc.get("podium_drivers_in_top3_predicted"),
             "podium_predicted": podium_pred,
@@ -247,6 +251,9 @@ def build(year: int) -> dict:
             "races": n,
             "winners": sum(r["winner_hit"] for r in record),
             "podium_overlap_avg": round(sum((r["podium_overlap"] or 0) for r in record) / n, 2) if n else None,
+            "replayed": sum(r["replay"] for r in record),
+            "replay_model": next((((_load(preds[r["round"]]) or {}).get("model") or {}).get("family")
+                                  for r in record if r["replay"]), None),
         },
     }
 

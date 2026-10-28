@@ -32,6 +32,7 @@ def run_inference(
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
     starting_grid: Optional[dict[str, int]] = None,
+    practice_laps: Optional[pd.DataFrame] = None,
     inputs: Optional[dict] = None,
 ) -> dict:
     """
@@ -43,8 +44,13 @@ def run_inference(
     official grid after penalties, which is what training saw as grid_position.
     Without it the qualifying order stands in and penalties are missed.
     inputs (where each input came from and when) is stored in the document as is.
+    practice_laps: this weekend's OpenF1 practice laps (long-run features); None
+    leaves them missing, which the model treats like a pre-2023 race.
     """
-    from src.features.build_features import FEATURE_COLS, load_feature_matrix, load_fill_values, pit_lane_to_back
+    from src.features.build_features import (
+        FEATURE_COLS, NAN_OK_COLS, load_feature_matrix, load_fill_values, pit_lane_to_back,
+    )
+    from src.features.practice_pace import add_practice_pace
     from src.features.driver_features import (
         add_circuit_history,
         add_championship_standing,
@@ -166,6 +172,9 @@ def run_inference(
     else:
         feat_df["grid_penalty_places"] = 0.0
 
+    # 1b2. Practice long-run pace (this weekend's laps only)
+    feat_df = add_practice_pace(feat_df, practice_laps)
+
     # 1c. Sprint result
     if sprint_df is not None and not sprint_df.empty:
         sprint_sub = sprint_df[
@@ -263,7 +272,9 @@ def run_inference(
     # 4. Ensure features and impute
     for col in FEATURE_COLS:
         if col not in feat_df.columns:
-            feat_df[col] = 0.0
+            feat_df[col] = np.nan if col in NAN_OK_COLS else 0.0
+        if col in NAN_OK_COLS:
+            continue
         if feat_df[col].isna().any():
             if col in train_fill:
                 feat_df[col] = feat_df[col].fillna(train_fill[col])

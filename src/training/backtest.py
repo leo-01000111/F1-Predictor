@@ -146,13 +146,15 @@ def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> Pr
 
 
 def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
-                           half_life: Optional[float] = None, current_boost: float = 1.0) -> PredictFn:
+                           half_life: Optional[float] = None, current_boost: float = 1.0,
+                           params: Optional[dict] = None, n_seeds: Optional[int] = None) -> PredictFn:
     """Phase 3: pace ranker trained on finishers only (+ finish model for P(finish)).
 
     use_finish_model=False isolates stage 2: the finishers-only ranker scored as if
     every car finishes. half_life: exponential recency weights (years) instead of
     the default linear 0.65-1.35. current_boost: extra weight multiplier for training
     rows from the test race's own season (only matters with in-season retraining).
+    params / n_seeds: ranker settings and seed-ensemble size (scripts/tune_ranker.py).
     """
     from src.models.xgb_model import TwoStageRaceModel
 
@@ -161,7 +163,7 @@ def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
         if current_boost != 1.0:
             w = np.where(train["year"].to_numpy() == test["year"].iloc[0], w * current_boost, w)
             w = w / w.mean()
-        model = TwoStageRaceModel()
+        model = TwoStageRaceModel(params=params, n_seeds=n_seeds)
         model.fit(train[cols], train["target_position"].values,
                   sample_weight=w,
                   qid=(train["year"] * 100 + train["round"]).to_numpy(),

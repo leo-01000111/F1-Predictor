@@ -30,7 +30,7 @@ from src.models.model_registry import (  # noqa: E402
 )
 
 
-MODEL_FAMILY = "two_stage_v4"
+MODEL_FAMILY = "two_stage_v5"
 
 
 def _race_ids(df) -> "np.ndarray":
@@ -299,6 +299,7 @@ def main() -> None:
         source="quick_train.py",
         feature_count=len(FEATURE_COLS),
         feature_cols=FEATURE_COLS,
+        extra={"ranker_params": prod_model.params, "n_seeds": prod_model.n_seeds},
     )
     logger.info("Active model manifest saved -> models/active_model.json")
     logger.info("Quick training complete. Ready for inference.")

@@ -31,5 +31,7 @@
   "team_form_5": 8.6,
   "grid_penalty_places": 0.0,
   "sprint_position_rel": 0.5,
-  "driver_experience_norm": 0.67
+  "driver_experience_norm": 0.67,
+  "fp_longrun_gap_pct": 0.0,
+  "team_longrun_gap_pct": -0.2516556730747216
 }

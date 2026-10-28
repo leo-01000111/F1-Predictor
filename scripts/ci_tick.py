@@ -116,7 +116,8 @@ def _raw_counts(year: int) -> dict:
     import pandas as pd
 
     out: dict = {}
-    for name in ("race_results", "quali_results", "sprint_results", "pit_stops", "weather", "kalshi_odds"):
+    for name in ("race_results", "quali_results", "sprint_results", "pit_stops", "weather_history",
+                 "practice_laps", "kalshi_odds"):
         path = RAW_DIR / f"{name}.parquet"
         if not path.exists():
             out[name] = None
@@ -235,6 +236,8 @@ def ingest(year: int, done_races: list[dict], now: datetime, dry_run: bool) -> b
     ok &= _run(["-m", "src.data_collection.weather", "--years", y], dry_run, "ingest")
     ok &= _run(["scripts/backfill_pit_sprint.py", "--pit", "--start", y, "--end", y, "--merge"], dry_run, "ingest")
     ok &= _run(["scripts/backfill_pit_sprint.py", "--sprint", "--start", y, "--end", y, "--merge"], dry_run, "ingest")
+    # Practice laps for the long-run pace features (OpenF1)
+    ok &= _run(["-m", "src.data_collection.practice_openf1", "--years", y], dry_run, "ingest")
     # Market prices (Phase 4): logged for the model-vs-market comparison, not used by
     # the model, so a Kalshi outage must not fail the tick
     _run(["-m", "src.data_collection.kalshi_odds"], dry_run, "ingest")
@@ -313,6 +316,8 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print the steps without running them")
     parser.add_argument("--no-probe", action="store_true", help="Skip the source availability probes")
     args = parser.parse_args()
+    # Event names like "São Paulo" must not crash a tick on a non-UTF-8 console
+    sys.stdout.reconfigure(errors="replace")
 
     real_now = datetime.now(timezone.utc)
     now = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else real_now

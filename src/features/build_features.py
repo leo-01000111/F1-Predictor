@@ -34,6 +34,7 @@ from src.features.driver_features import (
     season_length,
 )
 from src.features.circuit_features import add_grid_conversion, add_overtaking_index
+from src.features.practice_pace import add_practice_pace
 from src.features.team_features import (
     add_constructor_standing,
     add_team_reliability,
@@ -145,7 +146,16 @@ FEATURE_COLS = [
     "sprint_position_rel",      # sprint_position / n_starters (0.5 = neutral for non-sprint weekends)
     # Driver experience / rookie penalty
     "driver_experience_norm",   # prior career starts / 100, clipped [0,1]; 0=debut, 1=veteran (100+ races)
+    # Practice long-run pace (OpenF1, 2023 on; src/features/practice_pace.py). Added
+    # 2026-10-28: walk-forward 2024-2026 top-3 log loss -0.029 [-0.056, -0.004]
+    # (scripts/practice_backtest.py). Missing before 2023: never imputed (NAN_OK_COLS).
+    "fp_longrun_gap_pct",       # driver's best long run vs the session's median long run, %
+    "team_longrun_gap_pct",     # the faster of the team's two cars, %
 ]
+
+# Features left missing (NaN) instead of median-filled: XGBoost learns a branch
+# for "no data", while a median would make 2014-2022 look like average pace.
+NAN_OK_COLS = {"fp_longrun_gap_pct", "team_longrun_gap_pct"}
 
 TARGET_COLS = ["p1", "p2", "p3", "podium", "finish_position", "target_position"]
 
@@ -176,9 +186,13 @@ def build_feature_matrix(
     weather_df: Optional[pd.DataFrame] = None,
     pit_df: Optional[pd.DataFrame] = None,
     sprint_df: Optional[pd.DataFrame] = None,
+    practice_laps: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """
     Build the full feature matrix from raw DataFrames.
+
+    practice_laps: OpenF1 practice laps (data/raw/practice_laps.parquet); loaded
+    from disk when not given, so every caller gets the long-run features.
 
     All lookback features use shift(1) to avoid target leakage.
     """
@@ -349,6 +363,16 @@ def build_feature_matrix(
         df["is_street_circuit"] = 0.0
         df["circuit_safety_car_rate"] = _DEFAULT_SC_RATE
 
+    # Practice long-run pace (2023 on)
+    if practice_laps is None:
+        try:
+            from src.data_collection.practice_openf1 import load_practice_laps
+            practice_laps = load_practice_laps()
+        except FileNotFoundError:
+            logger.info("No practice_laps.parquet; long-run features stay missing. "
+                        "Run: python -m src.data_collection.practice_openf1")
+    df = add_practice_pace(df, practice_laps)
+
     # ------------------------------------------------------------------ #
     # 5. Ensure all feature columns exist; fill missing with medians
     # ------------------------------------------------------------------ #
@@ -363,7 +387,7 @@ def build_feature_matrix(
     for col in FEATURE_COLS:
         median = df[col].median()
         fill_values[col] = float(median) if not np.isnan(median) else 0.0
-        if df[col].isna().any():
+        if df[col].isna().any() and col not in NAN_OK_COLS:
             df[col] = df[col].fillna(fill_values[col])
     df.attrs["fill_values"] = fill_values
 
@@ -427,7 +451,7 @@ def _backfill_missing_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str
     # Keep all feature columns numeric and imputed.
     for col in FEATURE_COLS:
         series = pd.to_numeric(patched[col], errors="coerce")
-        if series.isna().any():
+        if series.isna().any() and col not in NAN_OK_COLS:
             median = series.median()
             fill_value = median if not np.isnan(median) else 0.0
             series = series.fillna(fill_value)

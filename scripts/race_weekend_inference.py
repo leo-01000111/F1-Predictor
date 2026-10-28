@@ -221,6 +221,20 @@ def main(
     except FileNotFoundError:
         logger.info("No sprint_results.parquet; sprint_position_rel will be 0.5. "
                     "Run: python scripts/backfill_pit_sprint.py --sprint --merge")
+    # Practice long runs (OpenF1): fetched for this round only, not saved; the
+    # ingest after the race stores them for training
+    practice_laps = None
+    try:
+        from src.data_collection.practice_openf1 import collect as collect_practice
+        practice_laps = collect_practice([year], only_round=round_num)
+    except Exception as exc:
+        logger.warning(f"Practice laps unavailable ({exc}); long-run features stay missing")
+    inputs["practice"] = {
+        "source": "openf1", "fetched_at": _ts(),
+        "sessions": sorted(practice_laps["session"].unique().tolist()) if practice_laps is not None and not practice_laps.empty else [],
+        "laps": 0 if practice_laps is None else len(practice_laps),
+    }
+
     # This weekend's sprint ran before qualifying but is only ingested after the race
     has_sprint = sprint_df is not None and ((sprint_df["year"] == year) & (sprint_df["round"] == round_num)).any()
     inputs["sprint"] = {"source": "sprint_results.parquet" if has_sprint else "none", "fetched_at": _ts()}
@@ -241,6 +255,7 @@ def main(
         pit_df=pit_df,
         sprint_df=sprint_df,
         starting_grid=starting_grid,
+        practice_laps=practice_laps,
         inputs=inputs,
     )
 

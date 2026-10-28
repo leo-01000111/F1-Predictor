@@ -1,17 +1,17 @@
 {
-  "winner_accuracy": 0.7142857142857143,
-  "podium_accuracy": 0.7063492063492064,
-  "brier_p1": 0.02609559334857143,
-  "mean_spearman_r": 0.6638650786574944,
-  "mean_mae_position": 8.23254722656076,
+  "winner_accuracy": 0.6428571428571429,
+  "podium_accuracy": 0.6984126984126985,
+  "brier_p1": 0.02499407869714286,
+  "mean_spearman_r": 0.6598938056603961,
+  "mean_mae_position": 8.31528886715626,
   "n_holdout_races": 42,
-  "mean_log_loss_winner": 1.0885667162248491,
+  "mean_log_loss_winner": 1.0237122809194716,
   "baselines": {
     "winner_accuracy_pole": 0.6904761904761905,
     "podium_accuracy_grid_top3": 0.6984126984126985,
     "n_races": 42
   },
-  "beats_baselines": true,
+  "beats_baselines": false,
   "holdout_years": [
     2025.0,
     2026.0
@@ -31,5 +31,5 @@
     2022,
     2023
   ],
-  "temperature": 0.931
+  "temperature": 0.784
 }

@@ -193,9 +193,13 @@ class XGBRaceRanker(XGBRacePredictor):
         "random_state": 42,
     }
 
-    def __init__(self, params: Optional[dict] = None) -> None:
+    def __init__(self, params: Optional[dict] = None, n_seeds: int = 1) -> None:
         super().__init__(params=params or self.DEFAULT_PARAMS)
         self.temperature = 1.0
+        # n_seeds > 1: average the scores of rankers that differ only in their
+        # random seed (row/column subsampling), which lowers the variance
+        self.n_seeds = n_seeds
+        self._seed_models: list = []
 
     def fit(
         self,
@@ -227,13 +231,28 @@ class XGBRaceRanker(XGBRacePredictor):
             first = np.r_[True, q_s[1:] != q_s[:-1]]
             fit_kwargs["sample_weight"] = w_s[first]
 
-        self._model = xgb.XGBRanker(**self.params)
-        self._model.fit(X_s, rel, **fit_kwargs)
-        logger.info(f"XGBRaceRanker trained on {len(X_s)} rows, {len(np.unique(q_s))} races")
+        seed0 = self.params.get("random_state", 42)
+        self._seed_models = []
+        for i in range(getattr(self, "n_seeds", 1)):
+            m = xgb.XGBRanker(**dict(self.params, random_state=seed0 + i))
+            m.fit(X_s, rel, **fit_kwargs)
+            self._seed_models.append(m)
+        self._model = self._seed_models[0]   # feature names / SHAP use the first
+        logger.info(f"XGBRaceRanker trained on {len(X_s)} rows, {len(np.unique(q_s))} races, "
+                    f"{len(self._seed_models)} seed(s)")
         return self
 
+    def _raw_score(self, X: pd.DataFrame) -> np.ndarray:
+        models = getattr(self, "_seed_models", None) or [self._model]
+        scores = []
+        for m in models:
+            self._model = m
+            scores.append(super().predict(X))
+        self._model = models[0]
+        return np.mean(scores, axis=0)
+
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        return -super().predict(X) / self.temperature
+        return -self._raw_score(X) / self.temperature
 
     def predict_finish(self, X: pd.DataFrame) -> Optional[np.ndarray]:
         """P(finish) per car; None for a pace-only model (every car assumed to finish)."""
@@ -263,10 +282,17 @@ class TwoStageRaceModel(XGBRaceRanker):
 
     predict() is the pace part (-score / T, as v3). predict_finish() gives
     P(finish). Probabilities: src.models.two_stage.simulate(pred, q, 1.0).
+
+    Settings from scripts/tune_ranker.py (2026-10-28): picked on 2018-2022
+    (depth 3, 300 trees, learning rate 0.03), then on 2023-2026 with 5 seeds
+    top-3 log loss -0.095 [-0.175, -0.021] vs the v3 ranker's settings.
     """
 
-    def __init__(self, params: Optional[dict] = None) -> None:
-        super().__init__(params=params)
+    DEFAULT_PARAMS = dict(XGBRaceRanker.DEFAULT_PARAMS, max_depth=3, n_estimators=300, learning_rate=0.03)
+    DEFAULT_SEEDS = 5
+
+    def __init__(self, params: Optional[dict] = None, n_seeds: Optional[int] = None) -> None:
+        super().__init__(params=params or self.DEFAULT_PARAMS, n_seeds=n_seeds or self.DEFAULT_SEEDS)
         self.finish_model = None
 
     def fit(

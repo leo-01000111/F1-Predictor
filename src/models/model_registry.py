@@ -60,9 +60,11 @@ def write_active_model_metadata(
     source: str = "",
     feature_count: Optional[int] = None,
     feature_cols: Optional[list[str]] = None,
+    extra: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
     Persist metadata for the currently active production model.
+    extra: model-specific fields (e.g. ranker_params, n_seeds) merged in as is.
     """
     payload: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -80,6 +82,8 @@ def write_active_model_metadata(
         payload["feature_count"] = int(feature_count)
     if feature_cols is not None:
         payload["feature_cols"] = list(feature_cols)
+    if extra:
+        payload.update(extra)
 
     with open(ACTIVE_MODEL_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)

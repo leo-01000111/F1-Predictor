@@ -1,0 +1,249 @@
+{
+  "tune_years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022
+  ],
+  "test_years": [
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "grid": [
+    {
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.03,
+      "ll_top3": 4.648751851576959,
+      "ll_winner": 1.3914061976921097
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "ll_top3": 4.661526707384574,
+      "ll_winner": 1.417683612900663
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 600,
+      "learning_rate": 0.03,
+      "ll_top3": 4.662553259057586,
+      "ll_winner": 1.438530284116525
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 150,
+      "learning_rate": 0.05,
+      "ll_top3": 4.66688234478819,
+      "ll_winner": 1.3795244711394197
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 300,
+      "learning_rate": 0.03,
+      "ll_top3": 4.667414774929687,
+      "ll_winner": 1.4195609270710998
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 150,
+      "learning_rate": 0.05,
+      "ll_top3": 4.6759910013716475,
+      "ll_winner": 1.3995364436912816
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "ll_top3": 4.67802675445749,
+      "ll_winner": 1.4133643520246497
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 300,
+      "learning_rate": 0.03,
+      "ll_top3": 4.678808783126238,
+      "ll_winner": 1.4192461186020044
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 600,
+      "learning_rate": 0.03,
+      "ll_top3": 4.678996209701864,
+      "ll_winner": 1.4346177966788967
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 600,
+      "learning_rate": 0.03,
+      "ll_top3": 4.680560718803736,
+      "ll_winner": 1.4314595025647041
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 150,
+      "learning_rate": 0.1,
+      "ll_top3": 4.689197095407161,
+      "ll_winner": 1.4405002019010438
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 600,
+      "learning_rate": 0.05,
+      "ll_top3": 4.700850976063263,
+      "ll_winner": 1.4384816067976252
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "ll_top3": 4.71597926613614,
+      "ll_winner": 1.4615313843830795
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 150,
+      "learning_rate": 0.1,
+      "ll_top3": 4.716770730153608,
+      "ll_winner": 1.4406672551530244
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 600,
+      "learning_rate": 0.05,
+      "ll_top3": 4.721337720725008,
+      "ll_winner": 1.463432746433493
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 150,
+      "learning_rate": 0.05,
+      "ll_top3": 4.726027584789037,
+      "ll_winner": 1.4534109028259046
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 600,
+      "learning_rate": 0.05,
+      "ll_top3": 4.732168396800223,
+      "ll_winner": 1.4835510036319146
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 150,
+      "learning_rate": 0.03,
+      "ll_top3": 4.7323109472669005,
+      "ll_winner": 1.433787443038743
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 300,
+      "learning_rate": 0.1,
+      "ll_top3": 4.734728320349137,
+      "ll_winner": 1.5025546660220555
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 150,
+      "learning_rate": 0.03,
+      "ll_top3": 4.737546877169212,
+      "ll_winner": 1.4046357867330128
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 150,
+      "learning_rate": 0.1,
+      "ll_top3": 4.7379876229141304,
+      "ll_winner": 1.4928503581750172
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 300,
+      "learning_rate": 0.1,
+      "ll_top3": 4.740270096392646,
+      "ll_winner": 1.4617641496273492
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 150,
+      "learning_rate": 0.03,
+      "ll_top3": 4.741027051215563,
+      "ll_winner": 1.4295500955081393
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 300,
+      "learning_rate": 0.1,
+      "ll_top3": 4.744171457282903,
+      "ll_winner": 1.480880748437645
+    },
+    {
+      "max_depth": 6,
+      "n_estimators": 600,
+      "learning_rate": 0.1,
+      "ll_top3": 4.780841647141675,
+      "ll_winner": 1.4862014289029786
+    },
+    {
+      "max_depth": 3,
+      "n_estimators": 600,
+      "learning_rate": 0.1,
+      "ll_top3": 4.78487085675004,
+      "ll_winner": 1.5264797723112022
+    },
+    {
+      "max_depth": 4,
+      "n_estimators": 600,
+      "learning_rate": 0.1,
+      "ll_top3": 4.814773669937612,
+      "ll_winner": 1.5491114477602232
+    }
+  ],
+  "pick": {
+    "max_depth": 3,
+    "n_estimators": 300,
+    "learning_rate": 0.03
+  },
+  "seeds": 5,
+  "confirm": {
+    "current": {
+      "ll_top3": 4.540825590290564,
+      "ll_winner": 1.1268323019181177,
+      "winner_accuracy": 0.6477272727272727
+    },
+    "current_s5": {
+      "ll_top3": 4.558765852307331,
+      "ll_winner": 1.127805505955479,
+      "winner_accuracy": 0.6590909090909091,
+      "minus_current": [
+        0.01794026201676596,
+        -0.0200822587626524,
+        0.05511578745017636
+      ]
+    },
+    "pick": {
+      "ll_top3": 4.463960580806253,
+      "ll_winner": 1.0515671459977254,
+      "winner_accuracy": 0.6590909090909091,
+      "minus_current": [
+        -0.07686500948431024,
+        -0.15733353976135592,
+        -0.002952026273309632
+      ]
+    },
+    "pick_s5": {
+      "ll_top3": 4.445551752624703,
+      "ll_winner": 1.048768686974262,
+      "winner_accuracy": 0.6590909090909091,
+      "minus_current": [
+        -0.09527383766586016,
+        -0.17534768110671387,
+        -0.020728740917441812
+      ]
+    }
+  }
+}
