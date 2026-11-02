@@ -122,7 +122,19 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       (form, standings, reliability, this weekend's quali) and the temperature.
 - [x] Ensembling: covered by the rating blend (the constrained 2-weight log-pool). All three
       calibration pieces together overfit: +0.015 [-0.091, +0.140].
-- [ ] Not attempted: a full Kalman / state-space strength model (Lindner et al. 2026) with
+- [x] Kalman phase A (2026-11-02): `src/models/kalman_strength.py` + `scripts/kalman_backtest.py`.
+      Qualifying gaps only (sessions with time order vs position Spearman < 0.9 skipped: 21/271;
+      gaps rescaled per session to the season's spread; Huber; shared team-session error).
+      Tuned on 2014-2020 for the next qualifying order. Eval 2021-2026, PL log-lik per event vs
+      current ratings: quali order +0.52 [+0.04, +1.04]; race order -0.42 [-1.00, +0.17];
+      Kalman+ratings vs ratings: quali +0.85 [+0.50, +1.23], race +0.35 [+0.05, +0.66].
+      Caveats: car/driver split unreliable (2021 Racing Bulls car > Red Bull; rookie prior -0.99),
+      new teams anchored at 0 not the field level (Cadillac), tuned values partly degenerate
+      (initial_driver_sd ~0, q1/q2 bias ~0). Tuning on gap likelihood ranked worse (0.61 vs 0.69).
+- [ ] Kalman phase B: anchor new teams/rookies to the current field level, then race-order
+      (Laplace) update + practice; re-tune; target: beat ratings on race order alone.
+- [ ] Kalman phase C/D: season simulation, then gym toggle (kalman pace + combo signal).
+- [ ] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with
       uncertainty per rating. The cheap version above did not help as an input, so this is low
       priority until Phase 4 gives a stronger benchmark.
 
