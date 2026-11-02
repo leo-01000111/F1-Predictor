@@ -53,7 +53,8 @@ def evaluate_race_predictions(
         race_pred_pos = group["_pred_pos"].values
         if finish_probs is not None:
             from src.models.two_stage import simulate
-            prob_matrix = simulate(race_pred_pos, group["_q"].values, 1.0, n_sims=sampler.n_simulations)
+            prob_matrix = simulate(race_pred_pos, group["_q"].values, 1.0, n_sims=sampler.n_simulations,
+                                   seed=sampler.seed)
         else:
             prob_matrix = sampler.simulate(race_pred_pos)  # (n_drivers, n_drivers)
 

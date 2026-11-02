@@ -130,6 +130,13 @@ def run_inference(
 
     upcoming_df = pd.DataFrame(upcoming_rows)
 
+    # Only races before this one: a re-run after the round was ingested would
+    # otherwise carry its results (and duplicate every driver in the merges below)
+    is_before = (race_df_history["year"] < year) | (
+        (race_df_history["year"] == year) & (race_df_history["round"] < round_num)
+    )
+    race_df_history = race_df_history[is_before]
+
     combined = pd.concat([race_df_history, upcoming_df], ignore_index=True)
     combined = pit_lane_to_back(canonicalize_teams(canonicalize_circuits(combined))).sort_values(["year", "round"])
     # Same pre-race ratings as training; the upcoming race has no result, so no update
@@ -312,10 +319,12 @@ def run_inference(
     finish_probs = model.predict_finish(X_df) if hasattr(model, "predict_finish") else None
 
     # 6. Race simulation → coherent position probabilities
+    # Seeded so re-running the same inputs publishes the same probabilities
     sampler = PlackettLuceSampler(temperature=1.0, n_simulations=10_000)
     if finish_probs is not None:
         from src.models.two_stage import simulate
-        prob_matrix = simulate(pred_positions, finish_probs, 1.0, n_sims=sampler.n_simulations)
+        prob_matrix = simulate(pred_positions, finish_probs, 1.0, n_sims=sampler.n_simulations,
+                               seed=sampler.seed)
     else:
         prob_matrix = sampler.simulate(pred_positions)  # (n_drivers, n_drivers)
     n_pos = prob_matrix.shape[1]

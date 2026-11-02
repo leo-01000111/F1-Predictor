@@ -220,7 +220,7 @@ def main() -> dict:
         for (year, rnd), group in test_df.reset_index(drop=True).groupby(["year", "round"]):
             idx = group.index
             race_pred = pred_positions[idx]
-            mat = simulate(race_pred, finish_probs[idx], 1.0, n_sims=sampler.n_simulations)
+            mat = simulate(race_pred, finish_probs[idx], 1.0, n_sims=sampler.n_simulations, seed=sampler.seed)
             all_p1_preds[idx] = mat[:, 0]
 
         p1_true = test_df["p1"].values
