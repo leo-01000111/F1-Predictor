@@ -163,7 +163,7 @@ features (33 columns) -> XGBoost regressor -> predicted finish position per driv
 - The regressor (`XGBRacePredictor` in `src/models/xgb_model.py`) predicts `target_position`, the finishing position with DNFs set to the number of starters plus one. It uses the `reg:absoluteerror` objective, and the number of trees is chosen by early stopping on an internal 10% split before the final fit.
 - Training uses recency sample weights (`src/training/weights.py`): older seasons get lower weight, linearly from 0.65 to 1.35 before normalising.
 - `PlackettLuceSampler` (`src/models/plackett_luce.py`) draws 10,000 simulated race orderings from the predicted positions using the Gumbel-max trick, with temperature 1.0. Each driver's row of the resulting matrix sums to 1, and each position's column sums to 1, so podium probabilities across the field add up to 3.
-- There is no separate calibration step. `src/models/calibration.py` only computes expected calibration error for evaluation, and the `calibration` entry in `config/config.yaml` is not read by the active pipeline.
+- There is no separate calibration step. `src/models/calibration.py` only computes expected calibration error for evaluation.
 - The three-classifier XGBoost plus PyTorch MLP plus logistic-regression stacking ensemble is archived in `experiments/archived/nn_ensemble/`, and the Reddit sentiment features are archived in `experiments/archived/sentiment/`. Neither is imported by the active code.
 
 ## Features

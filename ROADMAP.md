@@ -84,7 +84,8 @@ Our probabilities come from a hand-set transform, so they are uncalibrated by co
       2026-10-28. Walk-forward 191 races, top-3 log loss: ranker 4.861, regressor 5.160, grid 5.296;
       ranker vs grid -0.435 [-0.718, -0.163]. Winner hit 52.4% vs pole 53.9% (tie).
       Pairwise ranking objective was no better than the regressor (5.267).
-- [ ] Remove isotonic-calibrator leftovers once PL temperature replaces them.
+- [x] Removed isotonic-calibrator leftovers (2026-11-02): registry key, config block,
+      season_accuracy recalibration text. PL temperature is the only calibration step.
 
 ## Phase 3: structural model (closed 2026-10-28)
 
@@ -146,8 +147,11 @@ variants on cached two-stage predictions).
 - [x] 2026 site record replayed with v5 (`scripts/replay_season.py`): the old record was made in
       one batch on 2026-10-27 by the archived v2 regressor. 13/18 winners, 2.0 podium drivers per
       race. Old files in `data/predictions/archive/xgb_v2/`.
-- [ ] Compound-adjusted long runs (soft vs hard), and FP-session weighting. Re-test the practice
-      features when 2027 adds a season.
+- [x] Compound-adjusted long runs + FP-session weighting (2026-11-02, not shipped): options in
+      `practice_pace.py` (default off), `scripts/practice_compound_backtest.py`. Primary (cleaning +
+      tyre age + compound + FP2-weighted) vs v5 on 2024-2026: +0.025 [-0.001, +0.051] (worse);
+      degradation feature +0.029 [+0.002, +0.053]. Better Spearman, fewer covered rows.
+- [ ] Re-test the practice features when 2027 adds a season.
 
 ## Phase 4: the betting market
 
