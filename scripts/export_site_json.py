@@ -195,6 +195,28 @@ def _market(year: int, results: dict[int, Path], preds: dict[int, Path], cal: di
     return out
 
 
+def _live_market(year: int, rnd: int) -> dict | None:
+    """Latest Kalshi snapshot for an upcoming race (ci_tick snapshots from qualifying
+    to lights out): raw win / podium prices per driver and when they were taken."""
+    try:
+        import pandas as pd
+
+        snaps = pd.read_parquet(ROOT / "data" / "raw" / "kalshi_snapshots.parquet")
+    except Exception as exc:
+        print(f"live market skipped: {exc}")
+        return None
+    s = snaps[(snaps["year"] == year) & (snaps["round"] == rnd)].dropna(subset=["price"])
+    if s.empty:
+        return None
+    s = s[s["ts"] == s["ts"].max()]
+    prices = {m: {r.driver: round(float(r.price), 4) for r in g.itertuples()} for m, g in s.groupby("market")}
+    return {
+        "taken_utc": pd.Timestamp(s["ts"].iloc[0]).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "win": prices.get("win", {}),
+        "podium": prices.get("podium", {}),
+    }
+
+
 def build(year: int) -> dict:
     cal = _calendar(year)
     preds = {int(p.stem.split("_R")[1]): p for p in sorted(PRED_DIR.glob(f"{year}_R*.json"))}
@@ -239,6 +261,7 @@ def build(year: int) -> dict:
             "generated_at": doc.get("generated_at"),
             "is_wet_forecast": bool((doc.get("weather") or {}).get("is_wet_race", 0)),
             "drivers": _driver_rows(doc),
+            "live_market": _live_market(year, rnd),
         }
     else:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
