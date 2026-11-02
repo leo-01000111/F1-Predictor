@@ -1,28 +1,24 @@
 # F1 Race Prediction Pipeline — Project Description
 
-> Written for comparison against similar projects. Describes what the system is, what it does, and how it works end to end.
+> Written for comparison against similar projects. Describes what the system is, what it does, and how it works end to end. Current as of November 2026 (model family `two_stage_v5`). README.md has the commands; ROADMAP.md has every experiment and its numbers.
 
 ---
 
 ## What it is
 
-An end-to-end machine learning pipeline that predicts Formula 1 race podium probabilities (P1/P2/P3) for every driver before a race weekend. Given qualifying results and contextual data, the system outputs per-driver win and podium probabilities, published on leongorecki.eu by a GitHub Actions workflow.
+An end-to-end pipeline that predicts the result of a Formula 1 race once qualifying is over: for every driver, the probability of winning, finishing 2nd or 3rd, making the podium, the top 6 and the top 10. It also simulates the rest of the season for championship odds. GitHub Actions runs it every race weekend and publishes the results on leongorecki.eu, next to a model-vs-betting-market comparison.
 
-**Scope:** 2014–2025 hybrid-era training data. Current target: 2026 season inference.
+**Scope:** training data from 2014 (the hybrid era) on; predictions for the 2026 season, live since round 19.
 
 ---
 
 ## What it predicts
 
-Three binary classification targets per driver per race:
+One ranking of the field per race, turned into probabilities by simulation:
 
-| Target | Meaning | Base rate |
-|--------|---------|-----------|
-| `p1`   | Driver finishes 1st (wins) | ~4.6% |
-| `p2`   | Driver finishes 2nd | ~5.0% |
-| `p3`   | Driver finishes 3rd | ~5.0% |
-
-Each target is modelled independently. The result is a probability triplet per driver: `(p_win, p_p2, p_p3)`, plus a derived `p_podium = 1 - (1-p1)(1-p2)(1-p3)` approximation.
+- a **position probability matrix** P[driver, position]: each row and each column sums to 1, so the podium probabilities across the field add up to 3;
+- from it `p_win`, `p_p2`, `p_p3`, `p_podium`, `p_top6`, `p_top10`, plus `p_finish` (chance of being classified);
+- **championship odds** after each race: probability of the drivers' and constructors' titles, top-3 chances and expected points.
 
 ---
 
@@ -30,198 +26,105 @@ Each target is modelled independently. The result is a probability triplet per d
 
 | Source | What it provides | Access |
 |--------|-----------------|--------|
-| **FastF1** (Python library) | Historical race results, qualifying times, lap data, driver/team metadata | Free, cached locally |
-| **OpenF1 API** | Live qualifying and free practice session data for the current race weekend | Free REST API |
-| **Open-Meteo** | Race day weather per circuit (temperature, precipitation, wind, humidity) | Free, no key required |
-| *(Legacy)* Reddit API | Sentiment signals — collected but not used in the active pipeline | Optional, unused |
+| **FastF1** (with its Jolpica/Ergast fallback) | Race and qualifying results, calendar | Free. Lap data needs an F1 TV subscription and is not used |
+| **Jolpica** | Pit stops, sprint results, live sprint classification, backfills | Free REST API |
+| **OpenF1** | Live qualifying, the official starting grid (after penalties), practice laps with compounds (2023 on) | Free REST API |
+| **Open-Meteo** | Race-day forecast at inference; measured / day-before forecast weather for history | Free, no key |
+| **Kalshi** | Race winner and podium market prices (2025 on), snapshotted live from qualifying to lights out | Free public API |
+
+All raw data are stored as parquet files and committed: the CI uses them as state.
 
 ---
 
-## Feature matrix — 27 features
+## Features — 35 inputs
 
-One row per driver per race. Features fall into seven groups:
+All history features use only races before the one being predicted. Missing values get fill values saved at training time, so training and inference impute identically. Team and circuit names go through one canonical mapping (`teams.py`, `circuits.py`), so rebrands and data sources don't split the history.
 
-### Qualifying
-- `grid_position` — absolute grid slot (1 = pole)
-- `quali_gap_to_pole_s` — raw seconds behind pole (clipped at 5s)
-- `quali_gap_relative` — gap as fraction of max gap in that race (0–1, circuit-invariant)
-- `grid_position_rel` — grid slot normalised by field size (0 = pole, 1 = last)
-- `teammate_quali_delta` — driver's quali gap minus teammate's quali gap
+| Group | Inputs |
+|---|---|
+| Qualifying | grid position (starting grid after penalties), relative grid, gap to pole (relative), gap to teammate, grid penalty places |
+| Car pace | team's qualifying pace vs the field |
+| Driver form | finishes over the last 5 / 10 races and exponentially weighted, Elo, average finish in wet races, experience |
+| Start | how drivers convert this grid slot at this circuit |
+| Circuit | driver's average finish and podiums at the circuit, appearances, street circuit, safety-car rate |
+| Reliability | driver and team DNF rates |
+| Championship | position, points, title pressure, share of the season done |
+| Constructor | standing, points, team form |
+| Weather | temperature, rain, wind, humidity, wet race |
+| Sprint | sprint result on sprint weekends (fetched live from Jolpica) |
+| Practice | driver's and team's long-run pace gap (OpenF1 laps, 2023 on; left missing before) |
 
-### Driver form
-- `driver_form_5` — rolling mean finishing position, last 5 races
-- `driver_form_10` — rolling mean finishing position, last 10 races
-- `driver_form_ewm` — exponential weighted mean finishing position (span=5, recent races weighted more)
-
-### Circuit history (per driver, per circuit)
-- `circuit_avg_finish` — historical average finish at this circuit
-- `circuit_podiums` — historical podium count at this circuit
-- `circuit_appearances` — number of prior starts at this circuit
-
-### Reliability
-- `dnf_rate` — driver's historical DNF rate
-
-### Championship standing
-- `championship_position` — driver's current WDC position
-- `cum_points_before` — driver's cumulative points before this race
-
-### Constructor
-- `constructor_standing` — team's current WCC position
-- `team_cum_points` — team's cumulative points
-- `team_reliability_rate` — team-level DNF/finish rate
-
-### Weather
-- `temp_c_mean` — race day mean temperature (°C)
-- `precip_mm_total` — total precipitation (mm)
-- `windspeed_ms_mean` — mean wind speed (m/s)
-- `humidity_pct_mean` — mean humidity (%)
-- `is_wet_race` — binary flag (1 if precipitation above threshold)
-
-### Free practice
-- `fp_best_gap_s` — FP1 best lap gap to session-fastest
-- `fp2_best_gap_s` — FP2 best lap gap to session-fastest
-- `fp_long_run_delta` — FP long-run pace delta vs field
-- `fp_total_laps` — total FP laps completed (proxy for setup work / reliability)
-
-### Season progression
-- `round_fraction` — (round − 1) / (total rounds − 1); 0 = season opener, 1 = finale
+Computed but not used (tested, no gain): team pit-stop speed, Elo-style driver/team strength ratings, Kalman strength estimates, a circuit overtaking index.
 
 ---
 
 ## Model architecture
 
-### Primary model: XGBoost (default for inference)
-- Three independent binary classifiers: one per target (p1, p2, p3)
-- Dynamic `scale_pos_weight` to handle class imbalance (~20x for P1)
-- Winner accuracy on holdout: **~52%**
+**Production: two-stage model** (`TwoStageRaceModel`).
 
-### Secondary model: PyTorch MLP with embeddings
-- Categorical embeddings for driver (dim 16), team (dim 8), circuit (dim 12)
-- Dynamic `pos_weight` in `BCEWithLogitsLoss` for class imbalance
-- Trained alongside XGBoost but underperforms it on this dataset size
+1. **Ranker.** Five XGBoost rankers (NDCG objective, one query group per race), differing only in their random seed, averaged. Trained on classified finishers only, with recency weights from 0.65 (oldest season) to 1.35 (newest). Depth 3, 300 trees, learning rate 0.03, chosen on 2018-2022.
+2. **Finish model.** A logistic regression giving each car's chance of being classified.
+3. **Race simulation.** 10,000 simulated races: each car retires with its own probability and goes to the back; the others finish in a Plackett-Luce order (Gumbel-max sampling) of the ranker's scores divided by a temperature T. T is the only calibration step, fitted by maximum likelihood of the top-3 order on a season the ranker did not train on.
 
-### Stacking ensemble (meta-learner)
-- Logistic regression meta-learner (C=0.01, heavy L2) combining XGB and NN out-of-fold predictions
-- NN weight clamped to ≤2× XGB weight to prevent NN over-weighting
-- Winner accuracy on holdout: **~25%** (worse than XGB alone due to noisy NN OOF predictions)
-- **Not used for inference by default** — XGB-only is active until more data justifies stacking
+**Championship odds.** A Kalman filter tracks a pace value per driver and per car, with a full covariance (teammates share the car, which separates driver from car). It is updated by every qualifying session (gap to the session, scaled to the season's typical spread; mixed wet/dry sessions skipped) and every race finishing order (a Laplace step on the Plackett-Luce likelihood). Car uncertainty widens at each new season and much more at regulation resets. Each of 20,000 simulated seasons draws pace from the filter and lets it drift race by race; retirements come from a pre-qualifying finish model.
 
-### Isotonic calibration
-- Isotonic regression calibrator trained on the final year of training data
-- Converts raw model probabilities to calibrated probabilities
-- Degeneracy guard: if calibrated sum < 0.05 (distribution shift, e.g. new season), falls back to raw probs normalised by sum
+**Archived:** a finishing-position regressor; three per-position XGBoost classifiers plus a PyTorch MLP in a stacking ensemble with an isotonic calibrator; Reddit sentiment features.
 
 ---
 
-## Training strategy
+## Training and model choice
 
-**Two-pass approach** — both `quick_train.py` (XGB only) and `train.py` (full ensemble) run two sequential passes:
-
-| Pass | Purpose | Training window | Output |
-|------|---------|----------------|--------|
-| Pass 1 — Evaluation | Honest holdout metrics | All years except last 1–2 | `holdout_metrics.json`, SHAP values, calibration curve |
-| Pass 2 — Production | Best model for inference | All years except final year (used for calibration) | `xgb_podium.pkl`, `ensemble.pkl`, `calibrator.pkl` |
-
-Year splits are computed dynamically from available data, not hardcoded.
+- **Walk-forward backtest** chooses models: each season from 2018 is predicted by a model trained only on earlier seasons. Primary metric: per-race log loss of the ordered top 3 under the model's probabilities, against the starting grid used as a probability model, with paired bootstrap intervals. A 43-race holdout swings 10+ points with the training window and cannot tell models apart.
+- **Two passes** in training: an evaluation pass on the last two seasons (sanity metrics), then a production candidate trained on every season except the latest (T fitted on the latest).
+- **Promotion gate:** after each race the candidate replaces the production model unless it is clearly worse than the current model or the grid on the current season's races neither has trained on. Decisions are logged.
+- **A "gym"** runs stepwise searches over feature groups and calibration layers with a lockbox season range, to test combinations of ideas that did not help on their own.
 
 ---
 
-## Inference pipeline
+## Results
 
-Triggered post-qualifying on race Saturday:
+| Measure | Value |
+|---|---|
+| Walk-forward 2018-2026 (192 races), top-3 log loss | 4.50, grid 5.30 |
+| Holdout 2025-2026 (43 races) | winner 62.8% (pole 67.4%), podium drivers 71.3% (grid top 3 69.0%), Brier P1 0.025 |
+| P(win) calibration | slope 1.09 [0.95, 1.27] |
+| vs Kalshi at lights out (2025-2026) | better winner log loss than the de-vigged market |
+| Championship odds, 32 checkpoints 2018-2025 | champion log loss 0.31 (drivers), 0.33 (constructors); points-only baseline 0.38 / 0.38 |
 
-1. **Load historical data** — pulls completed races from the current season (in-season ingestion via FastF1)
-2. **Fetch live quali results** — OpenF1 API for grid positions and gap times
-3. **Fetch live FP data** — OpenF1 API for practice session laps (falls back to zeros if unavailable)
-4. **Feature assembly** — mirrors the training feature matrix: clips quali gap, computes relative features, merges weather, computes rolling form
-5. **Model inference** — XGBoost (default) or stacking ensemble via `--ensemble` flag
-6. **Calibration** — isotonic calibrator with degeneracy fallback
-7. **Output** — JSON saved to `data/predictions/YYYY_RNN.json`
-
----
-
-## Post-race tracking
-
-After each race completes:
-
-```
-python scripts/update_race_result.py --year YYYY --round N
-```
-
-- Fetches actual finishing order via FastF1
-- Computes: winner hit?, podium overlap count, Brier score per target, ECE (Expected Calibration Error)
-- Saves to `data/results/YYYY_RNN_actual.json`
-- Used to accumulate season-level calibration data for future recalibration
+Ideas that did not ship, each with its backtest numbers in ROADMAP.md: a Benter correction for places 2-3, compound-adjusted practice pace, strength ratings and Kalman estimates as inputs, safety-car and rating-blend calibration layers, a market blend, in-season retraining.
 
 ---
 
-## Model registry and artifact management
+## Inference and publishing
 
-- `models/active_model.json` — records which model family is active, training/calibration year ranges, artifact file paths
-- `models/holdout_metrics.json` — family-agnostic holdout results
-- `models/holdout_metrics_xgb.json` / `models/holdout_metrics_ensemble.json` — family-specific metrics
-- `models/shap_values_p1.parquet` — pre-computed at train time
+- **After qualifying** (CI, 45 minutes after the session): qualifying from OpenF1, starting grid from OpenF1 (falls back to the qualifying order), sprint result from Jolpica, practice laps from OpenF1, forecast from Open-Meteo. Features are built through the same code as training; `check_feature_skew.py` diffs both paths for a past race.
+- **Until lights out:** re-prediction when the official grid changes (penalties); Kalshi snapshots every tick.
+- **After the race:** data ingest, result recorded against the prediction, gated retrain, championship odds, site export.
+- **Site:** `site/f1-predictions.json` (next race, last race, season record, feature importance, title odds, model vs market per race, current Kalshi prices) feeds the project page: live podium cards, the season record, a betting-strategy replay against Kalshi with a gambling disclaimer, and a current-race odds calculator behind an 18+ self-declaration.
+- **Logging:** every CI tick appends decisions, step outputs, row counts and data-source availability to a per-season event log.
 
 ---
 
-## Known limitations / open issues
+## Known limitations
 
-- **Stacking underperforms XGB alone** — NN out-of-fold predictions are noisier than XGB on this dataset size; stacking is disabled for inference by default
-- **Calibrator distribution shift** — calibrator trained on 2025 data; degeneracy fallback active for 2026 until enough 2026 races are completed for recalibration
-- **FP features zero-filled for 2025** — historical data was collected without `--fp` flag; FP columns are all 0 for 2025 rows
-- **`round_fraction` not yet a trained feature** — added to feature matrix but current XGB pkl predates it; forward-compat shim silently drops it until next retrain
-- **Sentiment pipeline unused** — `sentiment.py` and `sentiment_features.py` are preserved but not wired into any active path
+- The grid penalty is only known once OpenF1 publishes the starting grid; before that the qualifying order is used.
+- P(podium) overstates the favourite (0.85 predicted, 0.78 observed): the Plackett-Luce order among finishers is too sharp for places 2-3. P(finish) is slightly under-confident.
+- Practice features exist only from 2023, so most training seasons have them missing.
+- Kalshi prices exist from 2025: too few races to fit a model-market blend.
+- One season of live predictions is a small sample for any claim about real-world accuracy.
 
 ---
 
 ## Repository structure (key paths)
 
-```
-src/
-  data_collection/
-    f1_historical.py     # FastF1 batch historical pull
-    f1_live.py           # OpenF1 live quali/FP + in-season race results
-    weather.py           # Open-Meteo fetch
-  features/
-    build_features.py    # Main feature pipeline (FEATURE_COLS = 27)
-    driver_features.py   # Form, circuit history, DNF rate, EWM
-    team_features.py     # Constructor standing, reliability, pit stops
-    weather_features.py  # Weather merge
-    practice_features.py # FP gap and long-run delta
-  models/
-    xgb_model.py         # XGBoost 3-classifier
-    nn_model.py          # PyTorch MLP with embeddings
-    ensemble.py          # Stacking meta-learner
-    calibration.py       # Isotonic calibration + ECE utilities
-    model_registry.py    # Active model metadata read/write
-  training/
-    train.py             # Full ensemble training (two-pass)
-    evaluate.py          # Brier score, log loss, winner accuracy, ECE
-    cross_validate.py    # Leave-one-season-out CV
-  inference/
-    predict.py           # Inference engine
-  pipeline/
-    actions.py           # Shared in-process action runner
-
-scripts/
-  quick_train.py               # XGB-only train (~5 min)
-  race_weekend_inference.py    # Saturday post-quali inference script
-  update_race_result.py        # Post-race actual result fetch + comparison
-
-data/
-  raw/                         # FastF1 cache, weather CSVs
-  processed/
-    feature_matrix.parquet     # 27-feature training matrix (one row per driver per race)
-  predictions/
-    YYYY_RNN.json              # Pre-race probability outputs
-  results/
-    YYYY_RNN_actual.json       # Post-race actuals + accuracy metrics
-
-models/
-  xgb_podium.pkl
-  ensemble.pkl
-  calibrator.pkl
-  active_model.json
-  holdout_metrics.json
-  shap_values_p1.parquet
-```
+| Purpose | Path |
+|---|---|
+| Feature pipeline / list | `src/features/build_features.py` |
+| Production model | `src/models/xgb_model.py`, `src/models/two_stage.py` |
+| Championship simulation | `src/models/season_sim.py`, `src/models/kalman_strength.py`, `scripts/title_odds.py` |
+| Training + gate | `scripts/quick_train.py`, `src/training/promotion.py` |
+| Walk-forward backtest | `src/training/backtest.py`, `scripts/backtest.py` |
+| Inference | `src/inference/predict.py`, `scripts/race_weekend_inference.py` |
+| CI driver | `scripts/ci_tick.py`, `.github/workflows/race-weekend.yml` |
+| Site export | `scripts/export_site_json.py` → `site/f1-predictions.json` |
+| Experiments | `models/experiments/`, `scripts/*_backtest.py`, `scripts/gym.py` |

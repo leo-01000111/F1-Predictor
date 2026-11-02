@@ -206,15 +206,16 @@ def run_inference(
     feat_df = merge_weather(feat_df.drop(columns=["is_wet_race"], errors="ignore"), weather_row)
 
     # 2b. Wet-race driver performance
-    # raw race_df_history doesn't have is_wet_race, so we load the pre-computed
-    # feature matrix and use the latest driver_wet_avg_finish value per driver.
+    # raw race_df_history doesn't have is_wet_race, so take wet finishes from the
+    # feature matrix: mean finish over every wet race before this one, at least 3
+    # (as add_wet_performance in training). The matrix's last stored value lagged
+    # one race and, when replaying a past round, came from after it.
     try:
         hist_fm = load_feature_matrix()
-        drv_wet = (
-            hist_fm.sort_values(["driver", "year", "round"])
-            .groupby("driver")["driver_wet_avg_finish"]
-            .last()
-        )
+        before = (hist_fm["year"] < year) | ((hist_fm["year"] == year) & (hist_fm["round"] < round_num))
+        wet = hist_fm[before & (hist_fm["is_wet_race"] == 1)].dropna(subset=["finish_position"])
+        agg = wet.groupby("driver")["finish_position"].agg(["mean", "count"])
+        drv_wet = agg["mean"].where(agg["count"] >= 3)
         feat_df["driver_wet_avg_finish"] = feat_df["driver"].map(drv_wet)
     except Exception:
         feat_df["driver_wet_avg_finish"] = np.nan

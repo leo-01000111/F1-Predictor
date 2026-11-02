@@ -30,7 +30,7 @@ Nothing later means anything until the data is complete and the model is measure
 
 - [x] `scripts/backfill_results_jolpica.py`: refill empty/missing race + quali rounds from Jolpica
       (2022 R8-16, 2023 R2-22 race; 2022-23 quali). Verified against stored 2022 R7: identical.
-- [ ] **Run it**, then weather for 2023, then `quick_train.py` (commands in TODO).
+- [x] **Run it**, then weather for 2023, then `quick_train.py` (commands in TODO). -> done (backfill, weather, retrain 2026-10-27).
 - [x] DNF labels: since late 2023 Jolpica writes lapped finishers as `"Lapped"`, which counted as
       DNF (364 rows, inflating `dnf_rate`). Shared `is_dnf()` in `f1_historical.py`, also used by
       `f1_live.py`; the backfill script relabels all rows.
@@ -40,13 +40,13 @@ Nothing later means anything until the data is complete and the model is measure
       inference). `src/features/teams.py` `canonical_team()` gives one name per lineage
       (2026 branding), so rebrands share history. Applied in collectors, build_features,
       predict.py and the site export; stored parquets rewritten.
-- [ ] If the retrained model still loses to the grid: test monotone constraint on grid position,
+- [x] If the retrained model still loses to the grid: test monotone constraint on grid position, -> superseded: the ranker / two-stage models beat the grid.
       check whether form/history features override the grid, try grid-only + quali gap model.
 - [x] Known skews: sprint result now fetched live (Jolpica), official starting grid from OpenF1
       with a re-prediction when penalties change it, pit-lane starts (grid 0) moved behind the
       last slot. 2026-10-28: top-3 log loss 4.648 -> 4.595.
-- [ ] `driver_wet_avg_finish` one race behind at inference.
-- [ ] Update CLAUDE.md: it still describes per-target binary classifiers + isotonic calibrator.
+- [x] `driver_wet_avg_finish` one race behind at inference. -> fixed 2026-11-03.
+- [x] Update CLAUDE.md: it still describes per-target binary classifiers + isotonic calibrator. -> done.
 
 **Done when:** data complete for 2014-2026, team names canonical, and the model beats both grid
 baselines on the holdout (or we know why not).
@@ -78,8 +78,13 @@ Our probabilities come from a hand-set transform, so they are uncalibrated by co
 - [x] Benter correction (2026-11-02, not shipped): per-place exponents in `two_stage` (`lambdas`,
       default off), `scripts/benter_backtest.py`. ll_top3 vs v5 +0.003 [-0.026, +0.028]; lambdas
       noisy per season (pooled: l2 1.0, l3 0.85-0.95). The favourite's podium overstatement stays.
-- [ ] Favourite podium overstatement (0.85 vs 0.78): test whether P(finish) is too high for
-      favourites (finish-model reliability by grid/favourite rank).
+- [x] Favourite podium overstatement (0.85 vs 0.78) decomposed (2026-11-03, walk-forward
+      2018-2026, 192 races): NOT the finish model. Favourite P(finish) 0.884 pred vs 0.911 obs
+      (under-predicted); P(podium | finished) 0.963 pred vs 0.857 obs [0.798, 0.901]. The excess
+      is the PL order among finishers (Harville sharpness for places 2-3), which Benter exponents
+      fitted on top-3 log loss do not fix. Side finding: P(finish) slightly under-confident
+      overall (q 0.66 -> 0.78 observed in the lowest bin), likely reliability improving since
+      the older training seasons.
 - [x] Learn strengths directly: `XGBRaceRanker` (NDCG, one group per race) is production since
       2026-10-28. Walk-forward 191 races, top-3 log loss: ranker 4.861, regressor 5.160, grid 5.296;
       ranker vs grid -0.435 [-0.718, -0.163]. Winner hit 52.4% vs pole 53.9% (tie).
@@ -152,7 +157,7 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       tuning look-ahead): drivers -0.114 [-0.317, +0.078] vs model. model_s0.8 sigma was picked
       on this backtest; the Kalman variant was pre-registered. SHIPPED 2026-11-02: title_odds.py uses it (F1-Predictor efafbb6; site
       f211e2f adds a 'Title odds' architecture row, EN + FR).
-- [ ] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with
+- [x] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with -> done 2026-11-02 as Kalman phases A-D (above).
       uncertainty per rating. The cheap version above did not help as an input, so this is low
       priority until Phase 4 gives a stronger benchmark.
 

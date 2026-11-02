@@ -1,6 +1,6 @@
 # F1 race outcome prediction pipeline
 
-Predicts finishing-position probabilities (win, P2, P3, podium, top 6, top 10) for every driver before an F1 race. A single XGBoost regressor predicts each driver's finish position, and a Plackett-Luce simulation turns those predictions into a position probability matrix. Training data starts in 2014. GitHub Actions runs it every race weekend and publishes the predictions on [leongorecki.eu](https://leongorecki.eu/projects/f1predictor.html).
+Predicts finishing-position probabilities (win, P2, P3, podium, top 6, top 10) for every driver before an F1 race. An XGBoost ranking model orders the drivers, a logistic model gives each car's chance of finishing, and a race simulation (retirements plus a Plackett-Luce order) turns both into a position probability matrix. A Kalman-filter season simulation gives championship odds. Training data starts in 2014. GitHub Actions runs it every race weekend and publishes the predictions on [leongorecki.eu](https://leongorecki.eu/projects/f1predictor.html).
 
 The raw and processed data (about 1 MB of parquet), the predictions and results, and the active model (`models/xgb_race.pkl`) are committed, because the GitHub Actions automation below uses them as state. The FastF1 cache and other model artifacts are git-ignored.
 
@@ -19,7 +19,7 @@ There is no `.env.example`. Every variable has a default, so nothing is required
 ### 3. Collect historical data
 ```bash
 # Race and qualifying results (FastF1, via its Ergast/Jolpica fallback)
-python -m src.data_collection.f1_historical --start 2014 --end 2024
+python -m src.data_collection.f1_historical --start 2014 --end 2026
 
 # Historical weather (Open-Meteo) for the races in data/raw/race_results.parquet
 python -m src.data_collection.weather
@@ -28,7 +28,10 @@ python -m src.data_collection.weather
 
 `f1_historical` also accepts `--merge` (only collect years not already saved) and `--sleep` (seconds between requests).
 
-Lap-level data (practice pace, lap-1 positions, start tyres) is not used: F1's livetiming archive, which FastF1 reads it from, now requires a paid F1 TV subscription.
+FastF1's lap data (lap-1 positions, start tyres) is not used: F1's livetiming archive now requires a paid F1 TV subscription. Practice laps come from OpenF1 instead (2023 on):
+```bash
+python -m src.data_collection.practice_openf1
+```
 
 Two feature groups come from separate collectors. Without them the matching features are filled with neutral values (see `src/features/build_features.py`):
 ```bash
@@ -46,7 +49,7 @@ python scripts/quick_train.py
 
 <!-- TODO: add measured training time for quick_train.py -->
 
-Optional hyperparameter search with Optuna, then training with the result:
+The production ranker's settings come from `scripts/tune_ranker.py` (walk-forward, picked on 2018-2022). The Optuna search below tunes the archived regressor (`XGBRacePredictor`) and does not affect the production model:
 ```bash
 python scripts/tune_hyperparams.py --n-trials 60 --timeout 900
 python scripts/quick_train.py --use-tuned-params
@@ -78,97 +81,85 @@ python scripts/season_accuracy.py --year 2026
 
 ## Automation (GitHub Actions)
 
-`.github/workflows/race-weekend.yml` runs `scripts/ci_tick.py` every hour from Saturday to Monday (UTC). Each tick reads the FastF1 calendar and the files in `data/`, then does whatever is due:
+`.github/workflows/race-weekend.yml` runs `scripts/ci_tick.py` every hour from Saturday to Monday (UTC), plus an extra Sunday run at :48. Each tick reads the FastF1 calendar and the files in `data/`, then does whatever is due:
 
-- 45 minutes after qualifying ends, it predicts the race (`race_weekend_inference.py`).
-- 4 hours after the race, once the result is published, it collects the season's race, qualifying, weather, pit stop and sprint data, records the result against the prediction, and retrains (`quick_train.py`).
-- Every tick, it writes `site/f1-predictions.json` (`scripts/export_site_json.py`). The website copies that file for the live predictions on [leongorecki.eu/projects/f1predictor.html](https://www.leongorecki.eu/projects/f1predictor.html).
+- 45 minutes after qualifying ends, it predicts the race (`race_weekend_inference.py`). Until lights out it re-predicts whenever OpenF1's starting grid changes (penalties), and snapshots the live Kalshi win and podium books (`data/raw/kalshi_snapshots.parquet`).
+- 4 hours after the race, it collects the season's race, qualifying, weather, pit stop, sprint, practice and Kalshi data, records the result against the prediction, retrains (`quick_train.py`, behind the promotion gate) and updates the championship odds (`title_odds.py`).
+- Every tick, it writes `site/f1-predictions.json` (`scripts/export_site_json.py`). The website copies that file hourly for the live section, the model-vs-market calculator and the title odds on [leongorecki.eu/projects/f1predictor.html](https://www.leongorecki.eu/projects/f1predictor.html).
 
-The workflow commits the updated data, model and JSON. CI installs `requirements-ci.txt`, whose versions are pinned to the ones that trained the committed pickle. Scheduled workflows are disabled after 60 days without commits. Over the off-season, `scripts/keepalive.py` (run weekly by a Windows scheduled task named "F1 keepalive") commits a timestamp to `.github/keepalive.txt` in this repo and the website repo whenever the last commit is more than 45 days old.
+Every tick appends to `data/logs/ci_<season>.jsonl` (decisions, each step's exit code and output tail, raw-file row counts, prediction inputs, data-source availability probes). `python scripts/ci_log_report.py --year 2026 --round 19` prints a round's timeline.
+
+The workflow commits the updated data, model and JSON: `data/` and the production model files are committed as CI state. CI installs `requirements-ci.txt`, pinned to the versions that trained the committed pickle. Scheduled workflows are disabled after 60 days without commits; over the off-season `scripts/keepalive.py` (a weekly Windows scheduled task, "F1 keepalive") commits a timestamp to both repos when the last commit is more than 45 days old.
 
 Check what a tick would do without running anything:
 ```bash
 python scripts/ci_tick.py --dry-run --now 2026-10-31T23:50:00Z
 ```
 
-`scripts/check_feature_skew.py 2026 18 austin` builds the features of a past race through both the training and the inference path and lists every feature that differs. Run it after changing feature code.
+`scripts/check_feature_skew.py 2026 18 austin` builds a past race's features through both the training and the inference path and lists every feature that differs. Run it after changing feature code.
 
 ## Project structure
 
 ```
 .
-├── config/
-│   ├── config.yaml
-│   └── settings.py              # pydantic settings, paths, UI options
-├── data/                        # not committed
-│   ├── raw/                     # parquet files from the collectors
-│   ├── processed/               # feature_matrix.parquet
-│   ├── cache/                   # FastF1 cache
-│   ├── predictions/             # one JSON per race
-│   └── results/                 # recorded actual results
-├── models/                      # not committed (model pickle, metrics, SHAP values)
-├── experiments/archived/
-│   ├── nn_ensemble/             # XGBoost + MLP + logistic stacking experiment (not used)
-│   └── sentiment/               # Reddit sentiment experiment (not used)
+├── config/                      # settings.py (paths, env), config.yaml (ranges, URLs, coordinates)
+├── data/
+│   ├── raw/                     # parquet files from the collectors (committed, CI state)
+│   ├── processed/               # feature_matrix.parquet, feature_fill_values.json
+│   ├── predictions/             # one JSON per race, YYYY_title.json
+│   ├── results/                 # recorded actual results
+│   └── logs/                    # CI event log per season
+├── models/                      # xgb_race.pkl, active_model.json, holdout_metrics.json
+│   └── experiments/             # backtest, calibration, gym and Kalman results
+├── experiments/archived/        # earlier models (regressor, stacking + MLP, sentiment), not imported
+├── site/f1-predictions.json     # what the website reads
 ├── scripts/
-│   ├── quick_train.py           # feature build + training + evaluation artifacts
-│   ├── tune_hyperparams.py      # Optuna search
-│   ├── race_weekend_inference.py
-│   ├── update_race_result.py
-│   ├── post_race_retrain.py
-│   ├── season_accuracy.py
-│   ├── predict_past_race.py
-│   ├── keepalive.py
-│   ├── backfill_pit_sprint.py
-│   └── pipeline_after_ratelimit.py
-├── src/
-│   ├── data_collection/
-│   │   ├── f1_historical.py     # FastF1 race, quali, sprints; Jolpica pit stops
-│   │   ├── f1_live.py           # OpenF1 live quali and practice data
-│   │   ├── weather.py           # Open-Meteo archive and forecast
-│   │   └── odds.py              # The Odds API race winner odds
-│   ├── features/
-│   │   ├── build_features.py    # FEATURE_COLS and the feature pipeline
-│   │   ├── driver_features.py
-│   │   ├── team_features.py
-│   │   ├── circuit_features.py
-│   │   └── weather_features.py
-│   ├── models/
-│   │   ├── xgb_model.py         # XGBRacePredictor (regressor)
-│   │   ├── plackett_luce.py     # position probability matrix
-│   │   ├── calibration.py       # expected calibration error
-│   │   └── model_registry.py    # active model manifest, metrics files
-│   ├── training/
-│   │   ├── cross_validate.py    # leave-one-season-out CV
-│   │   ├── evaluate.py          # holdout metrics
-│   │   └── weights.py           # recency sample weights
-│   ├── inference/
-│   │   └── predict.py           # feature assembly and prediction JSON
-│   ├── pipeline/
-│   │   └── actions.py           # inference and result-recording actions
-├── PROJECT_DESCRIPTION.md       # older description, see note below
-└── requirements.txt
+│   ├── ci_tick.py               # the scheduled race-weekend driver
+│   ├── quick_train.py           # features + two-pass training + promotion gate
+│   ├── race_weekend_inference.py, predict_past_race.py, replay_season.py
+│   ├── update_race_result.py, post_race_retrain.py, season_accuracy.py
+│   ├── title_odds.py            # championship simulation for the site
+│   ├── export_site_json.py
+│   ├── backtest.py              # walk-forward model choice (top-3 log loss vs the grid)
+│   ├── gym.py                   # stepwise toggle search with a lockbox
+│   ├── reliability.py, market_backtest.py, championship_backtest.py, kalman_backtest.py, ...
+│   └── check_feature_skew.py, ci_log_report.py, keepalive.py
+└── src/
+    ├── data_collection/         # f1_historical (FastF1/Jolpica), f1_live (OpenF1, Jolpica live),
+    │                            # practice_openf1, weather (Open-Meteo), kalshi_odds, source_probe
+    ├── features/                # build_features (FEATURE_COLS), driver/team/circuit/weather
+    │                            # features, practice_pace, strength_ratings, circuits, teams
+    ├── models/
+    │   ├── xgb_model.py         # TwoStageRaceModel (production), XGBRaceRanker
+    │   ├── two_stage.py         # FinishModel, top-k PL likelihood, race simulation
+    │   ├── race_calibration.py  # PL temperature + parked post-hoc layers (default off)
+    │   ├── season_sim.py        # championship Monte Carlo
+    │   ├── kalman_strength.py   # driver + car Kalman filter (title odds)
+    │   └── model_registry.py, calibration.py (ECE), plackett_luce.py
+    ├── training/                # backtest, promotion, gym, evaluate, weights, cross_validate
+    ├── inference/predict.py     # feature assembly at race time, prediction JSON
+    ├── pipeline/actions.py
+    └── ci_log.py
 ```
-
-`scripts/pipeline_after_ratelimit.py` is a one-off script with a hard-coded start time and still passes `--xgb-only` to the inference script, which no longer accepts that flag. Treat it as a leftover.
 
 ## Model
 
 ```
-features (33 columns) -> XGBoost regressor -> predicted finish position per driver
-                      -> Plackett-Luce simulation -> P[driver, position] matrix
-                      -> p_win, p_p2, p_p3, p_podium, p_top6, p_top10
+35 features -> 5 averaged XGBoost NDCG rankers (finishers only) -> score per driver, / T
+            -> logistic FinishModel                             -> P(finish) per car
+            -> race simulation: retirements from P(finish), finishers in Plackett-Luce order
+            -> p_win, p_p2, p_p3, p_podium, p_top6, p_top10
 ```
 
-- The regressor (`XGBRacePredictor` in `src/models/xgb_model.py`) predicts `target_position`, the finishing position with DNFs set to the number of starters plus one. It uses the `reg:absoluteerror` objective, and the number of trees is chosen by early stopping on an internal 10% split before the final fit.
-- Training uses recency sample weights (`src/training/weights.py`): older seasons get lower weight, linearly from 0.65 to 1.35 before normalising.
-- `PlackettLuceSampler` (`src/models/plackett_luce.py`) draws 10,000 simulated race orderings from the predicted positions using the Gumbel-max trick, with temperature 1.0. Each driver's row of the resulting matrix sums to 1, and each position's column sums to 1, so podium probabilities across the field add up to 3.
-- There is no separate calibration step. `src/models/calibration.py` only computes expected calibration error for evaluation.
-- The three-classifier XGBoost plus PyTorch MLP plus logistic-regression stacking ensemble is archived in `experiments/archived/nn_ensemble/`, and the Reddit sentiment features are archived in `experiments/archived/sentiment/`. Neither is imported by the active code.
+- **Ranker** (`TwoStageRaceModel` in `src/models/xgb_model.py`, family `two_stage_v5`): XGBoost `rank:ndcg`, one query group per race, trained on classified finishers only. Depth 3, 300 trees, learning rate 0.03 (`scripts/tune_ranker.py`, picked on 2018-2022), 5 seeds averaged. Recency sample weights from 0.65 (oldest season) to 1.35 (newest).
+- **Finish model** (`src/models/two_stage.py`): logistic regression on reliability, circuit, grid, weather and experience inputs. Retired cars go to the back of the simulated order.
+- **Probabilities**: `two_stage.simulate` (10,000 Gumbel-max draws). The Plackett-Luce temperature T is the only calibration step, fitted on a season the model did not train on. Each driver's row and each position's column of the result sum to 1.
+- **Championship odds** (`scripts/title_odds.py`): a Kalman filter over every qualifying session and race (`kalman_strength.py`) gives car and driver pace with uncertainty; each of 20,000 simulated seasons draws from it and lets pace drift race by race. Retirements come from a pre-qualifying finish model.
+- Earlier models (a finishing-position regressor, three classifiers + MLP stacking with an isotonic calibrator) are in `experiments/archived/`.
 
 ## Features
 
-The 33 model inputs are listed in `FEATURE_COLS` in `src/features/build_features.py`. All rolling and history features use only races before the one being predicted. Missing values are filled with the column median.
+The 35 inputs are `FEATURE_COLS` in `src/features/build_features.py`. Every rolling or history feature uses only races before the one being predicted; missing values get the training fill values saved in `data/processed/feature_fill_values.json`, except the practice features (`NAN_OK_COLS`), which stay missing before 2023.
 
 | Group | Features |
 |---|---|
@@ -182,31 +173,23 @@ The 33 model inputs are listed in `FEATURE_COLS` in `src/features/build_features
 | Constructor | `constructor_standing`, `team_cum_points`, `team_form_5` |
 | Weather | `temp_c_mean`, `precip_mm_total`, `windspeed_ms_mean`, `humidity_pct_mean`, `is_wet_race` |
 | Sprint | `sprint_position_rel` |
+| Practice (OpenF1, 2023 on) | `fp_longrun_gap_pct`, `team_longrun_gap_pct` |
+
+The grid at inference is OpenF1's starting grid (after penalties) when published, else the qualifying order. FastF1 lap data needs a paid F1 TV subscription, so practice laps come from OpenF1.
 
 ## Evaluation
 
-`scripts/quick_train.py` runs two passes.
-
-1. Evaluation pass. The last two seasons present in the feature matrix are the holdout (2023 and 2024 for data collected through 2024, or 2024 and 2025 if you also collected 2025). The third-from-last season is also kept out of training, and the rest are used for training. Probabilities come from the Plackett-Luce sampler. Metrics (winner accuracy, podium accuracy, P1 Brier score, Spearman correlation, mean position error, expected calibration error) are written to `models/holdout_metrics.json`, alongside per-race results, a P1 calibration curve and SHAP values. With fewer than 8 seasons the split shrinks (see the script).
-2. Production pass. The active model (`models/xgb_race.pkl`) is retrained on every season except the most recent one in the data. This includes seasons that were holdout in pass 1 (with data through 2024, 2023 is in the production training set and 2024 is not). The holdout metrics therefore describe the pass 1 model, not the production model.
-
-`python -m src.training.cross_validate` runs leave-one-season-out cross-validation: each season from `--min-year` (default 2019) to `--max-year` is held out in turn and the model is trained on all other seasons, including later ones. Results go to `models/loso_cv_results.parquet` and `models/loso_cv_summary.json`.
-
-`scripts/update_race_result.py` and `scripts/season_accuracy.py` track accuracy on real races once a season is under way.
-
-<!-- TODO: add measured results (holdout metrics, CV summary) once the author has run the final training -->
+- **Model choice: walk-forward backtest** (`scripts/backtest.py`). Each season from 2018 is predicted by a model trained only on earlier seasons, with T fitted on the previous season's out-of-sample predictions. Primary metric: per-race Plackett-Luce log loss of the ordered top 3, compared with the starting grid as a probability model, with a paired bootstrap. v5 over 2018-2026 (192 races): 4.50 vs 5.30 for the grid.
+- **Calibration** (`scripts/reliability.py`): P(win) is calibrated (slope 1.09 [0.95, 1.27]); P(podium) overstates the favourite (0.85 predicted, 0.78 observed), from the order among finishers rather than the finish model.
+- **Against the market** (`scripts/market_backtest.py`): at lights out the model beats Kalshi's de-vigged prices on winner log loss (2025-2026).
+- **`quick_train.py` runs two passes.** Pass 1 holds out the last two seasons and writes `models/holdout_metrics.json` (2025-2026, 43 races: winner 62.8%, podium drivers 71.3% vs 67.4% / 69.0% for the grid, Brier P1 0.025). Pass 2 trains the production candidate on every season except the latest. A 43-race holdout swings by 10+ points with the training window, so it is a sanity check, not a model-selection tool.
+- **Promotion gate** (`src/training/promotion.py`): the candidate replaces `models/xgb_race.pkl` unless it is clearly worse than the current model or the grid on the current season's races neither has trained on.
+- **Experiments that did not ship** are recorded in `ROADMAP.md` with their numbers (Benter correction, compound-adjusted practice, the gym search, Kalman inputs to the race model, market blend).
 
 ## Configuration
 
-Settings are defined in `config/settings.py` and read from environment variables or a `.env` file in the repository root (git-ignored). `config/config.yaml` holds data ranges, API URLs, circuit coordinates and the XGBoost defaults used before tuning.
-
-| Variable | Default | Used for |
-|---|---|---|
-| `ODDS_API_KEY` | empty | The Odds API key for `src/data_collection/odds.py`. Read with `os.getenv`, so export it in the shell (a `.env` file is not loaded into the environment by this code). Nothing in the pipeline calls the odds fetcher yet. |
-| `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT` | empty, empty, `f1_prediction_bot/1.0` | Legacy, only for the archived sentiment experiment |
-
-FastF1, OpenF1 and Open-Meteo need no keys.
+Settings are defined in `config/settings.py` and read from environment variables or a `.env` file in the repository root (git-ignored). FastF1, OpenF1, Jolpica, Open-Meteo and Kalshi's public API need no keys. `ODDS_API_KEY` (The Odds API, `src/data_collection/odds.py`) and the Reddit variables are only used by unused or archived code.
 
 ## Notes
 
-`PROJECT_DESCRIPTION.md` was written for the earlier three-classifier version and does not match the current model.
+`ROADMAP.md` holds the longer plan and every experiment's result; `TODO_FP_MIGRATION.md` (not committed) is the working log. `scripts/pipeline_after_ratelimit.py` is a one-off leftover.
