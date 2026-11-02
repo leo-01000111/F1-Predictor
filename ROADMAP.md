@@ -153,6 +153,20 @@ variants on cached two-stage predictions).
       degradation feature +0.029 [+0.002, +0.053]. Better Spearman, fewer covered rows.
 - [ ] Re-test the practice features when 2027 adds a season.
 
+### Gym: combined toggle search (2026-11-02)
+- [x] `src/training/gym.py` + `scripts/gym.py`: registry of 17 model-level flips (add pit/ratings/
+      overtaking, drop each feature group / reputation, monotone, half-life, no finish model) + 35
+      single-feature drops (ablation map only) + post-hoc layers (pooled T, rating blend, overtaking
+      T, safety car, Benter). Prediction cache; stepwise on dev, lockbox scored once.
+- [x] Result: both splits picked add_pit + drop_car + rating_blend 0.5 + safety_car on dev
+      (-0.17 summed); lockbox rejected it: 2024-26 +0.189 [+0.051, +0.334], 2025-26 +0.271
+      [+0.102, +0.449]. Model-level part alone +0.016 / +0.057 (ns). v5 stays.
+- Ablation map (dev 2018-23): qualifying +0.75, finish model +0.26, reputation +0.24, driver
+  +0.13, driver_elo alone +0.06, monotone +0.05 (all hurt when removed/added); practice +0.015
+  when dropped (dev 2018-24). Nothing removable for a clear gain.
+- [ ] If re-run: accept a flip only when its CI upper bound < 0; register compound practice
+      columns (`add_columns_toggle(..., first_test_season=2024)`) once 2027 adds a season.
+
 ## Phase 4: the betting market
 
 The market is the real benchmark. Benter's model alone barely beat the public odds; the blend won.
