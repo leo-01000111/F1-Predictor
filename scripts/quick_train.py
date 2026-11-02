@@ -312,7 +312,6 @@ def main() -> dict:
     write_active_model_metadata(
         model_family=MODEL_FAMILY,
         model_artifact="xgb_race.pkl",
-        calibrator_artifact=None,
         train_years=prod_train_years,
         calibration_years=[int(y) for y in prod_cal_years],
         holdout_years=[int(y) for y in holdout_years],

@@ -3,8 +3,7 @@ Season accuracy summary.
 
 Reads all recorded actual results from data/results/ and prints a per-round
 accuracy table plus season-level calibration metrics. Use this to monitor
-whether model accuracy and calibration are improving as the season progresses
-and the seasonal recalibrator accumulates data.
+whether model accuracy and calibration are improving as the season progresses.
 
 Usage:
     python scripts/season_accuracy.py --year 2026
@@ -111,19 +110,6 @@ def summarise(year: int, results_dir: Path) -> None:
     print(f"  Winner accuracy        : {winner_hits}/{n} = {winner_acc:.1%}")
     print(f"  Cumulative Brier P1    : {cumulative_brier:.4f}  (lower is better; random=0.0476 for 21-car field)")
     print(f"  Cumulative ECE P1      : {cumulative_ece:.4f}  (lower is better; 0=perfectly calibrated)")
-
-    # Seasonal recalibration check
-    print(f"\nSeasonal recalibration status:")
-    min_samples_needed = 22 * 4   # approx 4 races with 22-driver grid
-    if len(all_p1_probs) >= min_samples_needed:
-        print(f"  ACTIVE -- {len(all_p1_probs)} driver-race samples available (threshold: {min_samples_needed})")
-    else:
-        remaining = min_samples_needed - len(all_p1_probs)
-        races_remaining = int(np.ceil(remaining / 22))
-        print(
-            f"  PENDING -- {len(all_p1_probs)}/{min_samples_needed} samples; "
-            f"recalibrator activates after ~{races_remaining} more race(s)"
-        )
 
     # Trend (if enough data)
     if len(docs) >= 3:
