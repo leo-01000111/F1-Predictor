@@ -147,7 +147,8 @@ def make_ranker_predict(cols: list[str], objective: str = "rank:pairwise") -> Pr
 
 def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
                            half_life: Optional[float] = None, current_boost: float = 1.0,
-                           params: Optional[dict] = None, n_seeds: Optional[int] = None) -> PredictFn:
+                           params: Optional[dict] = None, n_seeds: Optional[int] = None,
+                           finish_cols: Optional[list[str]] = None) -> PredictFn:
     """Phase 3: pace ranker trained on finishers only (+ finish model for P(finish)).
 
     use_finish_model=False isolates stage 2: the finishers-only ranker scored as if
@@ -155,7 +156,11 @@ def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
     the default linear 0.65-1.35. current_boost: extra weight multiplier for training
     rows from the test race's own season (only matters with in-season retraining).
     params / n_seeds: ranker settings and seed-ensemble size (scripts/tune_ranker.py).
+    finish_cols: inputs of the finish model, independent of the ranker's `cols`
+    (default None: the FINISH_COLS present in `cols`, as production). Used by the
+    gym (src/training/gym.py) so dropping a ranker feature leaves P(finish) alone.
     """
+    from src.models.two_stage import FinishModel
     from src.models.xgb_model import TwoStageRaceModel
 
     def _predict(train: pd.DataFrame, test: pd.DataFrame):
@@ -171,6 +176,10 @@ def make_two_stage_predict(cols: list[str], use_finish_model: bool = True,
         pred = model.predict(test[cols])
         if not use_finish_model:
             return pred
+        if finish_cols is not None:
+            dnf = pd.to_numeric(train["dnf"], errors="coerce").fillna(0).to_numpy()
+            fin = FinishModel(list(finish_cols)).fit(train[list(finish_cols)].assign(dnf=dnf), sample_weight=w)
+            return pred, fin.predict(test[list(finish_cols)])
         return pred, model.predict_finish(test[cols])
 
     return _predict
