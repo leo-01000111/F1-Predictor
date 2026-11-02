@@ -10,6 +10,9 @@ the race is a "safety-car race" whose log-strengths are multiplied by sc_flatten
 (< 1: a flatter, more reshuffled order). The likelihood is the mixture of the
 two cases; the simulation draws the case per simulated race.
 
+Benter correction: places 2 and 3 use log-strengths * lambda_2 / lambda_3
+(src.models.two_stage, lambdas=; walk-forward test in scripts/benter_backtest.py).
+
 All parameters are fitted by coordinate descent on top-3 log loss of races the
 pace model did not train on. With the defaults (rating_weight 0, slope 0,
 sc_scale 0) this is the plain two-stage model with temperature T.
@@ -32,6 +35,8 @@ GRIDS = {
     "overtaking_slope": [-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3],
     "sc_scale": [0.0, 1.0, 2.0, 4.0, 8.0],
     "sc_flatten": [0.25, 0.5, 0.75],
+    "lambda_2": list(np.round(np.arange(0.3, 1.51, 0.05), 2)),
+    "lambda_3": list(np.round(np.arange(0.3, 1.51, 0.05), 2)),
 }
 
 
@@ -52,6 +57,8 @@ class RaceCalibration:
     overtaking_slope: float = 0.0
     sc_scale: float = 0.0
     sc_flatten: float = 0.5
+    lambda_2: float = 1.0
+    lambda_3: float = 1.0
     fitted: list = field(default_factory=list)   # which parameters were fitted
 
     def log_strength(self, r: RaceContext) -> np.ndarray:
@@ -59,21 +66,28 @@ class RaceCalibration:
         t_race = self.temperature * np.exp(self.overtaking_slope * z)
         return (r.raw + self.rating_weight * r.car_rating) / t_race
 
+    @property
+    def lambdas(self) -> Optional[tuple]:
+        if self.lambda_2 == 1.0 and self.lambda_3 == 1.0:
+            return None
+        return (1.0, self.lambda_2, self.lambda_3)
+
     def p_sc(self, r: RaceContext) -> float:
         return float(min(self.sc_scale * r.sc_rate, 0.9))
 
     def nll(self, r: RaceContext, order: list[int], n_samples: int = 2000) -> float:
         s = self.log_strength(r)
         p = self.p_sc(r)
-        base = top_k_nll_logw(s, r.q, order, n_samples)
+        base = top_k_nll_logw(s, r.q, order, n_samples, lambdas=self.lambdas)
         if p <= 0:
             return base
-        sc = top_k_nll_logw(s * self.sc_flatten, r.q, order, n_samples)
+        sc = top_k_nll_logw(s * self.sc_flatten, r.q, order, n_samples, lambdas=self.lambdas)
         return float(-np.log((1 - p) * np.exp(-base) + p * np.exp(-sc)))
 
     def simulate(self, r: RaceContext, n_sims: int = 10_000, seed: Optional[int] = None) -> np.ndarray:
         s = self.log_strength(r)
-        return simulate_logw(s, r.q, n_sims=n_sims, seed=seed, s_alt=s * self.sc_flatten, p_alt=self.p_sc(r))
+        return simulate_logw(s, r.q, n_sims=n_sims, seed=seed, s_alt=s * self.sc_flatten, p_alt=self.p_sc(r),
+                             lambdas=self.lambdas)
 
     def fit(self, races: list[tuple[RaceContext, list[int]]], params: list[str],
             rounds: int = 2) -> "RaceCalibration":

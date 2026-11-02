@@ -13,10 +13,14 @@ the finishers are ordered by Plackett-Luce with weights w_i = exp(-pred_i / T);
 retired cars fill the places behind them. Probabilities come from Monte Carlo
 (simulate). Scoring the actual top 3 uses the exact PL formula averaged over
 sampled sets of other finishers (Rao-Blackwellised, low variance).
+
+Benter correction (optional, `lambdas`): the k-th place is drawn with
+log-strengths lambda_k * s instead of s (lambda_1 = 1, absorbed in T). Places
+beyond len(lambdas) use the last value. lambdas=None is plain Plackett-Luce.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -57,44 +61,60 @@ class FinishModel:
         return self._model.predict_proba(df[self.cols].astype(float).fillna(0.0))[:, 1]
 
 
+def position_lambdas(lambdas: Optional[Sequence[float]], n: int) -> np.ndarray:
+    """Benter exponent for each of the first n places (last value repeats; None = all 1)."""
+    lam = [1.0] if lambdas is None or len(lambdas) == 0 else [float(x) for x in lambdas]
+    return np.array([lam[min(k, len(lam) - 1)] for k in range(n)])
+
+
 def top_k_nll(pred: np.ndarray, q: np.ndarray, order: list[int], temperature: float,
-              n_samples: int = N_SUBSET_SAMPLES, seed: int = 0) -> float:
+              n_samples: int = N_SUBSET_SAMPLES, seed: int = 0,
+              lambdas: Optional[Sequence[float]] = None) -> float:
     """-log P(drivers `order` finish 1st, 2nd, ... in that order) under the two-stage model.
 
     P = prod_k q_k * E_S[ prod_j w_{o_j} / (W_S + sum_{m>=j} w_{o_m}) ], where S is
     the random set of other finishers (each other car finishes with prob q).
+    With lambdas, place j uses weights w^(lambda_j).
     """
-    return top_k_nll_logw(-np.asarray(pred, float) / temperature, q, order, n_samples, seed)
+    return top_k_nll_logw(-np.asarray(pred, float) / temperature, q, order, n_samples, seed, lambdas)
 
 
 def top_k_nll_logw(s: np.ndarray, q: np.ndarray, order: list[int],
-                   n_samples: int = N_SUBSET_SAMPLES, seed: int = 0) -> float:
+                   n_samples: int = N_SUBSET_SAMPLES, seed: int = 0,
+                   lambdas: Optional[Sequence[float]] = None) -> float:
     """top_k_nll with Plackett-Luce log-strengths s given directly."""
     s = np.asarray(s, float)
-    w = np.exp(s - s.max())
     q = np.clip(np.asarray(q, float), 1e-4, 1 - 1e-4)
     order = list(order)
-    others = np.setdiff1d(np.arange(len(w)), order)
+    others = np.setdiff1d(np.arange(len(s)), order)
     rng = np.random.default_rng(seed)
     mask = rng.random((n_samples, len(others))) < q[others]
-    w_other = mask @ w[others]                       # (n_samples,)
-    tail = np.cumsum(w[order][::-1])[::-1]           # sum of w over order[j:], per j
+    lam = position_lambdas(lambdas, len(order))
     p = np.ones(n_samples)
     for j, i in enumerate(order):
-        p *= w[i] / (w_other + tail[j])
+        sj = lam[j] * s
+        w = np.exp(sj - sj.max())
+        w_other = mask @ w[others]                   # (n_samples,)
+        p *= w[i] / (w_other + w[order[j:]].sum())
     return float(-(np.log(q[order]).sum() + np.log(p.mean())))
 
 
 def simulate(pred: np.ndarray, q: np.ndarray, temperature: float,
-             n_sims: int = 10_000, seed: Optional[int] = None) -> np.ndarray:
+             n_sims: int = 10_000, seed: Optional[int] = None,
+             lambdas: Optional[Sequence[float]] = None) -> np.ndarray:
     """Position probability matrix [driver, position] from the two-stage model."""
-    return simulate_logw(-np.asarray(pred, float) / temperature, q, n_sims=n_sims, seed=seed)
+    return simulate_logw(-np.asarray(pred, float) / temperature, q, n_sims=n_sims, seed=seed,
+                         lambdas=lambdas)
 
 
 def simulate_logw(s: np.ndarray, q: np.ndarray, n_sims: int = 10_000, seed: Optional[int] = None,
-                  s_alt: Optional[np.ndarray] = None, p_alt: float = 0.0) -> np.ndarray:
+                  s_alt: Optional[np.ndarray] = None, p_alt: float = 0.0,
+                  lambdas: Optional[Sequence[float]] = None) -> np.ndarray:
     """simulate() with log-strengths s. With s_alt, a share p_alt of the races
-    use s_alt instead (e.g. a safety-car race with a flatter order)."""
+    use s_alt instead (e.g. a safety-car race with a flatter order). With lambdas
+    (Benter), places are drawn one at a time with log-strengths lambda_k * s."""
+    if lambdas is not None and any(float(x) != 1.0 for x in lambdas):
+        return _simulate_benter(s, q, n_sims, seed, s_alt, p_alt, lambdas)
     s = np.asarray(s, float)
     n = len(s)
     rng = np.random.default_rng(seed)
@@ -110,4 +130,35 @@ def simulate_logw(s: np.ndarray, q: np.ndarray, n_sims: int = 10_000, seed: Opti
     counts = np.zeros((n, n))
     for pos in range(n):
         counts[:, pos] = np.bincount(rankings[:, pos], minlength=n)
+    return counts / n_sims
+
+
+def _simulate_benter(s: np.ndarray, q: np.ndarray, n_sims: int, seed: Optional[int],
+                     s_alt: Optional[np.ndarray], p_alt: float, lambdas: Sequence[float]) -> np.ndarray:
+    """simulate_logw with per-place exponents: places 1..L-1 are drawn one at a
+    time (argmax of lambda_k * s + Gumbel over the cars still running), the rest
+    are ordered by Plackett-Luce with the last lambda. Retired cars come last."""
+    s = np.asarray(s, float)
+    n = len(s)
+    lam = [float(x) for x in lambdas]
+    rng = np.random.default_rng(seed)
+    base = np.broadcast_to(s, (n_sims, n))
+    if s_alt is not None and p_alt > 0:
+        alt = rng.random(n_sims) < p_alt
+        base = np.where(alt[:, None], np.asarray(s_alt, float), base)
+    finished = rng.random((n_sims, n)) < np.asarray(q, float)
+    retired_order = -1e9 + rng.random((n_sims, n))
+    taken = np.zeros((n_sims, n), dtype=bool)
+    rows = np.arange(n_sims)
+    counts = np.zeros((n, n))
+    n_seq = min(len(lam) - 1, n)
+    for pos in range(n_seq):
+        sc = np.where(finished, lam[pos] * base + rng.gumbel(size=(n_sims, n)), retired_order)
+        pick = np.argmax(np.where(taken, -np.inf, sc), axis=1)
+        taken[rows, pick] = True
+        counts[:, pos] = np.bincount(pick, minlength=n)
+    sc = np.where(finished, lam[-1] * base + rng.gumbel(size=(n_sims, n)), retired_order)
+    rankings = np.argsort(-np.where(taken, -np.inf, sc), axis=1)
+    for pos in range(n_seq, n):
+        counts[:, pos] = np.bincount(rankings[:, pos - n_seq], minlength=n)
     return counts / n_sims
