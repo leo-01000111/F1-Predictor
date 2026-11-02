@@ -62,10 +62,12 @@ A 42-race hit rate has a 95% interval of about +-15 points. It cannot tell two m
       hit rates secondary. Grid scored as a probability model too (PL on grid, T fitted on past races).
 - [x] Paired bootstrap on per-race differences vs the grid.
 - [x] PL temperature fitted walk-forward (previous season's out-of-sample predictions). Phase 2.
-- [ ] Run it (user) and pick the production variant on `ll_top3` vs grid.
-- [ ] Reliability diagram for P(win) and P(podium) over the walk-forward set.
-- [ ] CI promotion gate: `post_race_retrain` / `pipeline/actions.py` currently compare winner
-      accuracy. Switch to walk-forward log loss, and refuse a model that loses to the grid.
+- [x] Run it and pick the production variant on `ll_top3` vs grid (two_stage_v5).
+- [x] Reliability diagram (`scripts/reliability.py`, 2026-11-02): P(win) calibrated (slope 1.09
+      [0.95, 1.27]); P(podium) favourite 0.85 predicted vs 0.78 observed, 4th/5th favourites low.
+- [x] CI promotion gate (`src/training/promotion.py`, 2026-11-02): quick_train writes a candidate,
+      scored on unseen races of the current season (ll_top3, T refit leave-one-race-out) vs the
+      current model and the grid; refused only when clearly worse.
 
 ## Phase 2: the probability layer
 
@@ -73,8 +75,11 @@ Our probabilities come from a hand-set transform, so they are uncalibrated by co
 
 - [x] Fit PL temperature `T` by maximum likelihood of the ordered top 3, on a season the model
       did not train on (backtest: previous season; quick_train: calibration season).
-- [ ] Benter correction: Harville/PL overstates favourites for 2nd and 3rd. Fit separate exponents
-      for positions 2 and 3.
+- [x] Benter correction (2026-11-02, not shipped): per-place exponents in `two_stage` (`lambdas`,
+      default off), `scripts/benter_backtest.py`. ll_top3 vs v5 +0.003 [-0.026, +0.028]; lambdas
+      noisy per season (pooled: l2 1.0, l3 0.85-0.95). The favourite's podium overstatement stays.
+- [ ] Favourite podium overstatement (0.85 vs 0.78): test whether P(finish) is too high for
+      favourites (finish-model reliability by grid/favourite rank).
 - [x] Learn strengths directly: `XGBRaceRanker` (NDCG, one group per race) is production since
       2026-10-28. Walk-forward 191 races, top-3 log loss: ranker 4.861, regressor 5.160, grid 5.296;
       ranker vs grid -0.435 [-0.718, -0.163]. Winner hit 52.4% vs pole 53.9% (tie).
