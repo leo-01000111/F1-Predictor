@@ -131,8 +131,14 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       Caveats: car/driver split unreliable (2021 Racing Bulls car > Red Bull; rookie prior -0.99),
       new teams anchored at 0 not the field level (Cadillac), tuned values partly degenerate
       (initial_driver_sd ~0, q1/q2 bias ~0). Tuning on gap likelihood ranked worse (0.61 vs 0.69).
-- [ ] Kalman phase B: anchor new teams/rookies to the current field level, then race-order
-      (Laplace) update + practice; re-tune; target: beat ratings on race order alone.
+- [x] Kalman phase B (2026-11-02): new teams / rookies anchored to the active field mean; race
+      finishing order as a Laplace (PL gradient + Hessian) update; tuned jointly on next-quali
+      order + race order 2014-2020; sd floor 0.01. Eval 2021-2026 vs ratings: quali order
+      +0.79 [+0.37, +1.24]; race order (pre-weekend) +0.05 [-0.41, +0.55] (tie, target missed);
+      Kalman+ratings race +0.37 [+0.07, +0.70]; post-quali Kalman vs grid on race order
+      +0.69 [+0.02, +1.37]. Sanity: 2021 Mercedes > Red Bull > AlphaTauri, VER/HAM top drivers;
+      2026 reset car sd 1.40 -> 0.55 by R3. Still: new-team prior sd tuned to 0.06 (only Haas
+      2016 in the window), q1/q2 bias at the floor, practice not used (2023+ only).
 - [ ] Kalman phase C/D: season simulation, then gym toggle (kalman pace + combo signal).
 - [ ] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with
       uncertainty per rating. The cheap version above did not help as an input, so this is low

@@ -1,18 +1,19 @@
 {
   "params": {
-    "noise_sd": 0.46444775304570696,
-    "car_drift_sd": 0.21745644959189622,
-    "driver_drift_sd": 9.664833856795492e-22,
-    "car_season_sd": 0.8682312470105175,
-    "car_reset_sd": 0.9893736279775492,
-    "driver_season_sd": 0.2131983699969481,
-    "driver_prior_sd": 0.3746041060372539,
-    "rookie_mean": -0.9936877752311652,
-    "initial_driver_sd": 6.0277319844800173e-05,
-    "car_prior_sd": 0.060523705942771525,
-    "q2_bias": 0.016414900486131086,
-    "q1_bias": 0.0026296189460214003,
-    "team_session_sd": 0.5869487909245555,
+    "noise_sd": 0.502053897515842,
+    "car_drift_sd": 0.1464415071585157,
+    "driver_drift_sd": 0.01,
+    "car_season_sd": 0.89553352601769,
+    "car_reset_sd": 0.9917053153214836,
+    "driver_season_sd": 0.21870283717193506,
+    "driver_prior_sd": 0.364121246586004,
+    "rookie_mean": -0.6183718118864605,
+    "initial_driver_sd": 0.18875611698130346,
+    "car_prior_sd": 0.06365199184428047,
+    "q2_bias": 0.01,
+    "q1_bias": 0.01,
+    "team_session_sd": 0.26155387089675375,
+    "race_scale": 1.2930254774858492,
     "huber_k": 2.5
   },
   "fit_years": [
@@ -25,8 +26,8 @@
   ],
   "quali_order": {
     "kalman": {
-      "scale": 1.0553,
-      "mean_ll": -36.7904,
+      "scale": 1.0447,
+      "mean_ll": -36.525,
       "n_events": 133
     },
     "ratings": {
@@ -41,69 +42,69 @@
     },
     "combo": {
       "weights": [
-        0.7792,
-        0.2905
+        0.8865,
+        0.1632
       ],
-      "mean_ll": -36.4591
+      "mean_ll": -36.4457
     },
     "kalman_minus_ratings": [
-      0.5232,
-      0.039,
-      1.0382
+      0.7885,
+      0.3658,
+      1.2378
     ],
     "kalman_minus_naive": [
-      2.3982,
-      1.9142,
-      2.8831
+      2.6636,
+      2.1515,
+      3.1833
     ],
     "combo_minus_ratings": [
-      0.8545,
-      0.5045,
-      1.2287
+      0.8679,
+      0.5068,
+      1.2455
     ],
     "by_year": {
       "2021": {
-        "kalman": -34.127,
+        "kalman": -33.869,
         "ratings": -34.003,
         "naive": -36.174,
-        "combo": -33.781
+        "combo": -33.755
       },
       "2022": {
-        "kalman": -36.129,
+        "kalman": -35.769,
         "ratings": -36.051,
         "naive": -39.229,
-        "combo": -35.639
+        "combo": -35.64
       },
       "2023": {
-        "kalman": -39.232,
+        "kalman": -39.181,
         "ratings": -40.294,
         "naive": -42.404,
-        "combo": -39.108
+        "combo": -39.221
       },
       "2024": {
-        "kalman": -37.327,
+        "kalman": -36.81,
         "ratings": -37.426,
         "naive": -39.063,
-        "combo": -36.809
+        "combo": -36.664
       },
       "2025": {
-        "kalman": -37.768,
+        "kalman": -37.516,
         "ratings": -37.593,
         "naive": -39.526,
-        "combo": -37.206
+        "combo": -37.309
       },
       "2026": {
-        "kalman": -35.899,
+        "kalman": -35.788,
         "ratings": -38.662,
         "naive": -38.641,
-        "combo": -36.056
+        "combo": -35.913
       }
     }
   },
   "race_order": {
     "kalman": {
-      "scale": 1.2011,
-      "mean_ll": -29.0588,
+      "scale": 1.214,
+      "mean_ll": -28.5817,
       "n_events": 133
     },
     "ratings": {
@@ -116,64 +117,91 @@
       "mean_ll": -31.1286,
       "n_events": 133
     },
+    "kalman_postq": {
+      "scale": 1.3327,
+      "mean_ll": -27.746,
+      "n_events": 133
+    },
+    "grid": {
+      "scale": 0.2333,
+      "mean_ll": -28.4353,
+      "n_events": 133
+    },
     "combo": {
       "weights": [
-        0.6791,
-        0.5615
+        0.8198,
+        0.4113
       ],
-      "mean_ll": -28.2848
+      "mean_ll": -28.2652
     },
     "kalman_minus_ratings": [
-      -0.4233,
-      -0.9979,
-      0.1662
+      0.0538,
+      -0.4114,
+      0.5495
     ],
     "kalman_minus_naive": [
-      2.0697,
-      1.5892,
-      2.5283
+      2.5468,
+      1.9974,
+      3.0667
     ],
     "combo_minus_ratings": [
-      0.3507,
-      0.0541,
-      0.6634
+      0.3703,
+      0.065,
+      0.6987
+    ],
+    "kalman_postq_minus_grid": [
+      0.6893,
+      0.0178,
+      1.3714
     ],
     "by_year": {
       "2021": {
-        "kalman": -28.199,
+        "kalman": -28.139,
         "ratings": -28.512,
         "naive": -29.866,
-        "combo": -28.064
+        "kalman_postq": -27.522,
+        "grid": -28.562,
+        "combo": -28.116
       },
       "2022": {
-        "kalman": -27.569,
+        "kalman": -26.705,
         "ratings": -26.574,
         "naive": -29.659,
-        "combo": -26.562
+        "kalman_postq": -25.983,
+        "grid": -27.772,
+        "combo": -26.377
       },
       "2023": {
-        "kalman": -29.684,
+        "kalman": -28.914,
         "ratings": -28.504,
         "naive": -32.993,
-        "combo": -28.479
+        "kalman_postq": -28.003,
+        "grid": -29.819,
+        "combo": -28.447
       },
       "2024": {
-        "kalman": -30.542,
+        "kalman": -29.98,
         "ratings": -30.181,
         "naive": -32.726,
-        "combo": -29.686
+        "kalman_postq": -29.006,
+        "grid": -28.108,
+        "combo": -29.633
       },
       "2025": {
-        "kalman": -30.471,
+        "kalman": -29.864,
         "ratings": -29.36,
         "naive": -32.115,
-        "combo": -29.23
+        "kalman_postq": -29.141,
+        "grid": -28.796,
+        "combo": -29.281
       },
       "2026": {
-        "kalman": -27.398,
+        "kalman": -27.497,
         "ratings": -28.45,
         "naive": -28.87,
-        "combo": -27.347
+        "kalman_postq": -26.396,
+        "grid": -27.412,
+        "combo": -27.403
       }
     }
   }

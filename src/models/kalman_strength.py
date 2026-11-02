@@ -24,8 +24,16 @@ skipped. Within a session, a noise multiplier from the median squared innovation
 Dynamics: per race, car variance + car_drift_sd^2 (development), driver variance +
 driver_drift_sd^2. At a new season, car + car_season_sd^2 (car_reset_sd^2 at a
 regulation reset), driver + driver_season_sd^2. New drivers start at rookie_mean
-with driver_prior_sd, new teams at 0 with car_prior_sd. Drivers seen in the first
-season of the data are not rookies: they start at 0 with initial_driver_sd.
+with driver_prior_sd, new teams with car_prior_sd. Both are anchored to the current
+field (gaps fix only differences, so the overall level drifts): a new team starts at
+the mean of the cars active this or last season, a rookie at the active drivers'
+mean + rookie_mean. Drivers seen in the first season of the data are not rookies:
+they start at the field mean with initial_driver_sd.
+
+Race update (phase B, race_scale > 0): the classified finishing order is a
+Plackett-Luce observation with log-strengths race_scale * (c + d). It is not
+Gaussian, so the update is a Laplace step at the prior mean (gradient and Hessian
+of the PL log-likelihood), as in TrueSkill / Glicko. Retirements are left out.
 
 The filter walks sessions in order and records the state BEFORE each session, so
 the pre-session values use only earlier qualifying sessions (no leakage).
@@ -44,6 +52,7 @@ from src.features.strength_ratings import REGULATION_RESETS
 MIN_ORDER_RHO = 0.9
 OFFSET_VAR = 1e4
 MAX_GAP_PCT = 7.0             # 107 % rule: slower laps carry no pace information
+SD_FLOOR = 0.01               # % of lap time; tuning may not push an sd below this
 
 
 @dataclass(frozen=True)
@@ -61,6 +70,7 @@ class KalmanParams:
     q2_bias: float = 0.2
     q1_bias: float = 0.4
     team_session_sd: float = 0.0   # car x track error shared by teammates in a session
+    race_scale: float = 0.0        # PL log-strength per % of pace in the race update (0 = off)
     huber_k: float = 2.5
 
 
@@ -108,6 +118,7 @@ class KalmanStrength:
         self.cov = np.zeros((0, 0))
         self.year: Optional[int] = None
         self.first_year: Optional[int] = None
+        self.last_seen: dict[tuple[str, str], int] = {}
 
     def _add(self, key: tuple[str, str], mean: float, sd: float) -> int:
         i = len(self.mean)
@@ -119,15 +130,27 @@ class KalmanStrength:
         self.cov = cov
         return i
 
+    def _field_mean(self, kind: str) -> float:
+        """Mean of the active (seen this or last season) drivers or cars."""
+        act = [i for key, i in self.index.items()
+               if key[0] == kind and self.last_seen.get(key, -1) >= (self.year or 0) - 1]
+        return float(self.mean[act].mean()) if act else 0.0
+
     def _idx(self, kind: str, name: str) -> int:
         key = (kind, name)
         if key not in self.index:
+            base = self._field_mean(kind)
             if kind == "d" and self.year == self.first_year:
-                return self._add(key, 0.0, self.p.initial_driver_sd)
-            if kind == "d":
-                return self._add(key, self.p.rookie_mean, self.p.driver_prior_sd)
-            return self._add(key, 0.0, self.p.car_prior_sd)
-        return self.index[key]
+                i = self._add(key, base, self.p.initial_driver_sd)
+            elif kind == "d":
+                i = self._add(key, base + self.p.rookie_mean, self.p.driver_prior_sd)
+            else:
+                i = self._add(key, base, self.p.car_prior_sd)
+        else:
+            i = self.index[key]
+        if self.year is not None:
+            self.last_seen[key] = self.year
+        return i
 
     def _inflate(self, car_sd: float, driver_sd: float) -> None:
         for (kind, _), i in self.index.items():
@@ -197,23 +220,70 @@ class KalmanStrength:
         self.cov = 0.5 * (P[:m, :m] + P[:m, :m].T)
         return ll
 
+    def update_race(self, drivers: list[str], teams: list[str]) -> float:
+        """Laplace update on a finishing order (drivers listed winner first).
+
+        Returns the plug-in PL log-likelihood of the order at the prior mean.
+        """
+        n, b = len(drivers), self.p.race_scale
+        if n < 2 or b <= 0:
+            return 0.0
+        di = [self._idx("d", d) for d in drivers]
+        ci = [self._idx("c", t) for t in teams]
+        m = len(self.mean)
+        H = np.zeros((n, m))
+        H[np.arange(n), di] += b
+        H[np.arange(n), ci] += b
+        s = H @ self.mean
+        g = np.zeros(n)
+        A = np.zeros((n, n))      # minus the Hessian of the PL log-likelihood in s
+        ll = 0.0
+        for j in range(n - 1):
+            r = s[j:]
+            pj = np.exp(r - r.max())
+            pj /= pj.sum()
+            ll += np.log(pj[0])
+            g[j] += 1.0
+            g[j:] -= pj
+            A[j:, j:] += np.diag(pj) - np.outer(pj, pj)
+        # (P^-1 + H'AH)^-1 = P - PH' (I + A H P H')^-1 A H P   (A is singular: shift invariance)
+        PH = self.cov @ H.T
+        M = np.linalg.solve(np.eye(n) + A @ (H @ PH), A @ PH.T)
+        cov = self.cov - PH @ M
+        self.cov = 0.5 * (cov + cov.T)
+        self.mean = self.mean + self.cov @ (H.T @ g)
+        return float(ll)
+
 
 def run(meas: pd.DataFrame, params: KalmanParams = DEFAULT_PARAMS,
-        all_sessions: Optional[pd.DataFrame] = None) -> tuple[pd.DataFrame, list[tuple[int, int, float]]]:
-    """Filter through all sessions in order.
+        all_sessions: Optional[pd.DataFrame] = None,
+        races: Optional[pd.DataFrame] = None) -> tuple[pd.DataFrame, list[tuple[int, int, float, float]]]:
+    """Filter through all weekends in order: qualifying update, then race update.
 
     meas: session_measurements() output. all_sessions (optional, year/round/driver/
-    team rows, e.g. raw qualifying or race entries) gets pre-session state too,
-    including skipped sessions. Returns per-row pre-session state and
-    (year, round, predictive log-lik) per used session.
+    team rows, e.g. raw qualifying or race entries) gets pre-weekend state too,
+    including skipped sessions; rows with src == "r" also get `pace_post_quali`
+    (after this weekend's qualifying, before the race). races (optional, raw race
+    results) feed the race update when params.race_scale > 0. Returns per-row
+    state and (year, round, quali log-lik, race log-lik) per weekend.
     """
     rows = all_sessions if all_sessions is not None else meas
     rows = rows.sort_values(["year", "round"], kind="stable")
     used = {k: g for k, g in meas.groupby(["year", "round"], sort=True)}
+    finishers = {}
+    if races is not None and params.race_scale > 0:
+        ok = races[pd.to_numeric(races["dnf"], errors="coerce").fillna(0) == 0].copy()
+        ok["_fin"] = pd.to_numeric(ok["finish_position"], errors="coerce")
+        ok = ok.dropna(subset=["_fin"]).sort_values(["year", "round", "_fin"])
+        finishers = {k: g for k, g in ok.groupby(["year", "round"], sort=True)}
+    by_key = {k: g for k, g in rows.groupby(["year", "round"], sort=True)}
+    weekends = sorted(set(by_key) | set(used) | set(finishers))
     kf = KalmanStrength(params)
+    post = {}
     rec = {"driver_pace": [], "driver_pace_sd": [], "car_pace": [], "car_pace_sd": [], "pace": [], "pace_sd": []}
     idx_out, lls = [], []
-    for (year, rnd), g in rows.groupby(["year", "round"], sort=True):
+    for year, rnd in weekends:
+        g = by_key.get((year, rnd), rows.iloc[:0])
         kf.advance(int(year))
         for i, r in g.iterrows():
             dm, ds = kf.get("d", str(r["driver"]))
@@ -223,11 +293,22 @@ def run(meas: pd.DataFrame, params: KalmanParams = DEFAULT_PARAMS,
                 rec[k].append(val)
             idx_out.append(i)
         s = used.get((year, rnd))
+        ll_q = ll_r = 0.0
         if s is not None:
-            ll = kf.update(s["driver"].astype(str).tolist(), s["team"].astype(str).tolist(),
-                           s["y"].to_numpy(float), s["stage"].to_numpy())
-            lls.append((int(year), int(rnd), ll))
-    return pd.DataFrame(rec, index=idx_out), lls
+            ll_q = kf.update(s["driver"].astype(str).tolist(), s["team"].astype(str).tolist(),
+                             s["y"].to_numpy(float), s["stage"].to_numpy())
+        if "src" in g.columns:
+            for i, r in g[g["src"] == "r"].iterrows():
+                post[i] = kf.pace(str(r["driver"]), str(r["team"]))[0]
+        f = finishers.get((year, rnd))
+        if f is not None:
+            ll_r = kf.update_race(f["driver"].astype(str).tolist(), f["team"].astype(str).tolist())
+        if s is not None or f is not None:
+            lls.append((int(year), int(rnd), ll_q, ll_r))
+    out = pd.DataFrame(rec, index=idx_out)
+    if post:
+        out["pace_post_quali"] = pd.Series(post)
+    return out, lls
 
 
 def pl_loglik(score: np.ndarray, order: np.ndarray) -> float:
@@ -252,29 +333,36 @@ def order_loglik(meas: pd.DataFrame, state: pd.DataFrame, scale: float, after_ye
 
 def tune(meas: pd.DataFrame, years: tuple[int, int] = (2014, 2020),
          start: KalmanParams = DEFAULT_PARAMS, maxiter: int = 400, restarts: int = 1,
-         objective: str = "order") -> tuple[KalmanParams, float]:
+         objective: str = "order", races: Optional[pd.DataFrame] = None) -> tuple[KalmanParams, float]:
     """Tune on `years` (Nelder-Mead, log scale), first season excluded as burn-in.
 
     objective "order": PL log-lik of the next qualifying order (what the filter is
-    used for; a fitted scale is a nuisance parameter). "gap": predictive likelihood
-    of the gaps themselves, which on 2021-2026 ranked drivers worse (Spearman 0.61
-    vs 0.69).
+    used for; a fitted scale is a nuisance parameter), plus, with `races`, the
+    log-lik of each race's finishing order from the post-qualifying state (scale =
+    race_scale, which is tuned too). "gap": predictive likelihood of the gaps
+    themselves, which on 2021-2026 ranked drivers worse (Spearman 0.61 vs 0.69).
+    Standard deviations are floored at SD_FLOOR (phase A drove some to ~0).
     """
     from scipy.optimize import minimize
 
     m = meas[(meas["year"] >= years[0]) & (meas["year"] <= years[1])]
-    start = replace(start, team_session_sd=max(start.team_session_sd, 0.05))
-    names = [k for k in asdict(start) if k not in ("huber_k", "rookie_mean")]
-    x0 = np.append(np.log([getattr(start, k) for k in names]), [start.rookie_mean, 0.0])
+    rc = None if races is None else races[(races["year"] >= years[0]) & (races["year"] <= years[1])]
+    start = replace(start, team_session_sd=max(start.team_session_sd, 0.05),
+                    race_scale=max(start.race_scale, 0.5) if rc is not None else 0.0)
+    skip = ("huber_k", "rookie_mean") + (("race_scale",) if rc is None else ())
+    names = [k for k in asdict(start) if k not in skip]
+    x0 = np.append(np.log([max(getattr(start, k), SD_FLOOR) for k in names]), [start.rookie_mean, 0.0])
 
     def unpack(x: np.ndarray) -> KalmanParams:
-        return replace(start, **{k: float(np.exp(v)) for k, v in zip(names, x[:-2])}, rookie_mean=float(x[-2]))
+        vals = {k: float(max(np.exp(v), SD_FLOOR)) for k, v in zip(names, x[:-2])}
+        return replace(start, **vals, rookie_mean=float(x[-2]))
 
     def f(x: np.ndarray) -> float:
-        state, lls = run(m, unpack(x))
+        state, lls = run(m, unpack(x), races=rc)
         if objective == "gap":
-            return -sum(ll for y, _, ll in lls if y > years[0])
-        return -order_loglik(m, state, float(np.exp(x[-1])), years[0])
+            return -sum(ll for y, _, ll, _r in lls if y > years[0])
+        race_ll = sum(r for y, _, _q, r in lls if y > years[0])
+        return -(order_loglik(m, state, float(np.exp(x[-1])), years[0]) + race_ll)
 
     for _ in range(restarts):      # Nelder-Mead in 14 dims stalls; restart from the optimum
         res = minimize(f, x0, method="Nelder-Mead", options={"maxiter": maxiter, "xatol": 1e-3, "fatol": 0.05})

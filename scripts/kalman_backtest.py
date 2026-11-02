@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Kalman strength filter, phase A (ROADMAP Phase 3: state-space strengths)
-========================================================================
-Qualifying-gap Kalman filter (src/models/kalman_strength.py) vs the current
+Kalman strength filter, phases A-B (ROADMAP Phase 3: state-space strengths)
+===========================================================================
+Kalman filter on qualifying gaps + race finishing orders (src/models/kalman_strength.py) vs the current
 Elo-style strength ratings (src/features/strength_ratings.py) and a naive
 baseline (each driver's gap in the previous usable session).
 
@@ -99,7 +99,7 @@ def main() -> None:
 
     if args.tune or not PARAMS_PATH.exists():
         start = KalmanParams(**json.loads(PARAMS_PATH.read_text())) if PARAMS_PATH.exists() else KalmanParams()
-        params, ll = tune(meas, start=start, restarts=2)
+        params, ll = tune(meas, start=start, restarts=2, races=race)
         PARAMS_PATH.write_text(json.dumps(asdict(params), indent=2))
         logger.info(f"Tuned on 2014-2020: log-lik {ll:.1f} -> {PARAMS_PATH.name}")
     params = KalmanParams(**json.loads(PARAMS_PATH.read_text()))
@@ -109,10 +109,13 @@ def main() -> None:
     r = race.reset_index(drop=True)
     entries = pd.concat([q[["year", "round", "driver", "team"]].assign(src="q"),
                          r[["year", "round", "driver", "team"]].assign(src="r")], ignore_index=True)
-    state, _ = run(meas, params, all_sessions=entries)
+    state, _ = run(meas, params, all_sessions=entries, races=race)
     entries = entries.join(state)
     q["kalman"] = entries.loc[entries["src"] == "q", "pace"].to_numpy()
     r["kalman"] = entries.loc[entries["src"] == "r", "pace"].to_numpy()
+    # after this weekend's qualifying (what a race-day model would see); compare with the grid
+    r["kalman_postq"] = entries.loc[entries["src"] == "r", "pace_post_quali"].to_numpy()
+    r["grid"] = -pd.to_numeric(r["grid_position"], errors="coerce").replace(0, np.nan)
 
     # Current ratings (pre-race, from earlier races); qualifying uses the same weekend's pre-race value
     rated = add_strength_ratings(race)
@@ -130,7 +133,8 @@ def main() -> None:
         per = {}
         block = {}
         df = df.assign(ratings=df["ratings"].fillna(df["ratings"].median()))
-        for method in ("kalman", "ratings", "naive"):
+        methods = ("kalman", "ratings", "naive") + (("kalman_postq", "grid") if target == "race_order" else ())
+        for method in methods:
             b = fit_scale(df, method, pos)
             per[method] = per_event(ev, method, pos, b)
             block[method] = {"scale": round(b, 4), "mean_ll": round(float(per[method].mean()), 4),
@@ -141,7 +145,10 @@ def main() -> None:
         per["combo"] = per_event(ev_c, "combo", pos, 1.0)
         block["combo"] = {"weights": [round(float(x), 4) for x in w],
                           "mean_ll": round(float(per["combo"].mean()), 4)}
-        for a, b_ in (("kalman", "ratings"), ("kalman", "naive"), ("combo", "ratings")):
+        pairs = [("kalman", "ratings"), ("kalman", "naive"), ("combo", "ratings")]
+        if target == "race_order":
+            pairs.append(("kalman_postq", "grid"))
+        for a, b_ in pairs:
             d, lo, hi = paired_bootstrap(per[a], per[b_])
             block[f"{a}_minus_{b_}"] = [round(d, 4), round(lo, 4), round(hi, 4)]
         by_year = pd.DataFrame(per).assign(year=[k[0] for k in per["kalman"].index]).groupby("year").mean()
