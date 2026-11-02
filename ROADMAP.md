@@ -178,7 +178,8 @@ needs an account). F1 race markets exist from 2025: winner (`KXF1RACE`) and podi
       ~12 min before an on-the-hour start. Exact pre-start prices for the re-test.
 - [ ] Re-test the blend when ~2 more seasons of prices exist (CI keeps collecting). If the
       race-start blend holds up, add a final prediction update just before the start.
-- [ ] Track "model vs market" per race on the site record.
+- [x] Track "model vs market" per race on the site: betting calculator with bookmaker margin
+      (2026-11-02, `market` block in export_site_json.py, assets/f1-market.js on the website).
 
 ## Phase 5: product
 

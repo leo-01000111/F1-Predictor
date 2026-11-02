@@ -13,6 +13,9 @@ models/holdout_metrics.json and writes site/f1-predictions.json:
   record          one row per predicted race with a result (season so far):
                   predicted and actual podiums, newest last; "replay" marks
                   races predicted after the fact (scripts/replay_season.py)
+  market          per raced round: the published model probabilities next to
+                  the Kalshi win/podium prices when the model predicts and at
+                  the start, plus the result (the site's betting calculator)
 
 The website's update-f1.yml workflow copies this file into the site repo.
 
@@ -148,6 +151,50 @@ def _driver_rows(pred: dict) -> list[dict]:
     ]
 
 
+def _market(year: int, results: dict[int, Path], preds: dict[int, Path], cal: dict[int, dict]) -> list[dict]:
+    """Model vs Kalshi, one entry per race with a result and a market.
+
+    Prices are raw (not de-vigged): what a contract cost, mid of bid and ask
+    (src/data_collection/kalshi_odds.price_from_quote). [at prediction, at start].
+    """
+    try:
+        import pandas as pd
+
+        odds = pd.read_parquet(ROOT / "data" / "raw" / "kalshi_odds.parquet")
+    except Exception as exc:
+        print(f"market skipped: {exc}")
+        return []
+    odds = odds[odds["year"] == year]
+
+    def price(v) -> float | None:
+        return None if pd.isna(v) else round(float(v), 4)
+
+    out = []
+    for rnd in sorted(results):
+        o = odds[odds["round"] == rnd]
+        if o.empty:
+            continue
+        res = _load(results[rnd]) or {}
+        finish = {a["driver"]: a.get("finish_position") for a in res.get("actual_results", [])}
+        quotes = {(r.market, r.driver): [price(r.price_pred), price(r.price_start)] for r in o.itertuples()}
+        rows = []
+        for d in _driver_rows(res):
+            win, pod = quotes.get(("win", d["driver"])), quotes.get(("podium", d["driver"]))
+            if not win and not pod:
+                continue
+            pos = finish.get(d["driver"])
+            rows.append({
+                "driver": d["driver"], "team": d["team"],
+                "p_win": d["p_win"], "p_podium": d["p_podium"],
+                "win": win, "podium": pod,
+                "won": pos == 1, "on_podium": bool(pos and pos <= 3),
+            })
+        replay = bool((_load(preds[rnd]) or {}).get("replay")) if rnd in preds else False
+        out.append({"round": rnd, "location": cal.get(rnd, {}).get("location"),
+                    "replay": replay, "drivers": rows})
+    return out
+
+
 def build(year: int) -> dict:
     cal = _calendar(year)
     preds = {int(p.stem.split("_R")[1]): p for p in sorted(PRED_DIR.glob(f"{year}_R*.json"))}
@@ -247,6 +294,7 @@ def build(year: int) -> dict:
         "last": last,
         "title": title,
         "record": record,
+        "market": _market(year, results, preds, cal),
         "record_summary": {
             "races": n,
             "winners": sum(r["winner_hit"] for r in record),
