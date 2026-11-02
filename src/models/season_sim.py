@@ -125,9 +125,17 @@ class SeasonResult:
 
 def simulate_season(model, future: pd.DataFrame, driver_pts: pd.Series, team_pts: pd.Series,
                     sprint_rounds: set[int], year: int, team_sigma: float = 0.3,
-                    n_sims: int = 10_000, seed: Optional[int] = 0) -> SeasonResult:
+                    n_sims: int = 10_000, seed: Optional[int] = 0,
+                    kalman: Optional[dict] = None) -> SeasonResult:
     """Monte Carlo of the remaining races. `model` is a fitted TwoStageRaceModel on
-    PREQUALI_COLS (its predict() already includes the temperature)."""
+    PREQUALI_COLS (its predict() already includes the temperature).
+
+    kalman (optional, Kalman phase C): {"filter": KalmanStrength after the last
+    completed race}. Race strengths then come from the filter instead of the model
+    score + team shock: each simulated season draws car + driver pace from the
+    posterior and steps the random walk once per remaining race; order is PL on
+    race_scale * pace. Finish probabilities still come from `model`.
+    """
     rng = np.random.default_rng(seed)
     drivers = sorted(future["driver"].unique())
     d_idx = {d: i for i, d in enumerate(drivers)}
@@ -142,15 +150,26 @@ def simulate_season(model, future: pd.DataFrame, driver_pts: pd.Series, team_pts
     gained = np.zeros((n_sims, n))
     shocks = rng.normal(0.0, team_sigma, size=(n_sims, len(teams)))[:, drv_team]
     sp = sprint_points(year)
+    if kalman is not None:
+        from src.models.kalman_strength import lineup_distribution
+
+        kf = kalman["filter"]
+        mean, cov, step = lineup_distribution(kf, drivers, [team_of[d] for d in drivers])
+        pace = rng.multivariate_normal(mean, cov, size=n_sims, method="eigh")
+        step_chol = np.linalg.cholesky(step + 1e-12 * np.eye(n))
 
     for rnd, race in future.groupby("round"):
         race = race.set_index("driver").reindex(drivers)
         X = race[PREQUALI_COLS].astype(float).fillna(0.0)
-        s = -model.predict(X)
         q = np.clip(model.predict_finish(X), 1e-3, 1.0)
+        if kalman is not None:
+            pace = pace + rng.standard_normal((n_sims, n)) @ step_chol.T
+            base = kf.p.race_scale * pace
+        else:
+            base = -model.predict(X)[None, :] + shocks
         for kind in (["race", "sprint"] if int(rnd) in sprint_rounds else ["race"]):
             table = RACE_POINTS if kind == "race" else sp
-            scores = s[None, :] + shocks + rng.gumbel(size=(n_sims, n))
+            scores = base + rng.gumbel(size=(n_sims, n))
             finished = rng.random((n_sims, n)) < q
             scores = np.where(finished, scores, -1e9 + rng.random((n_sims, n)))
             order = np.argsort(-scores, axis=1)[:, :len(table)]

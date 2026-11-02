@@ -32,6 +32,7 @@ from src.data_collection.f1_historical import (
     load_pit_stops, load_quali_results, load_race_results, load_sprint_results,
 )
 from src.features.build_features import load_feature_matrix
+from src.models.kalman_strength import KalmanParams, filter_through
 from src.models.season_sim import PREQUALI_COLS, future_features, prequali_params, simulate_season, standings
 from src.models.xgb_model import TwoStageRaceModel
 from src.training.backtest import paired_bootstrap
@@ -65,6 +66,8 @@ def main() -> None:
     logger.add(sys.stderr, level="INFO", filter=lambda r: r["name"] == "__main__")
     race, quali, pit, sprint = load_race_results(), load_quali_results(), load_pit_stops(), load_sprint_results()
     fm = load_feature_matrix().reset_index(drop=True)
+    # Kalman phase C: tuned on 2014-2020 results, so 2018-2020 checkpoints get a mild look-ahead
+    kparams = KalmanParams(**json.loads((OUT_DIR / "kalman_params.json").read_text()))
 
     rows = []
     for year in range(2018, 2026):
@@ -86,8 +89,13 @@ def main() -> None:
                          .drop_duplicates("round")[["round", "circuit", "circuit_key", "race_date"]])
             fut = future_features(race, quali, pit, sprint, year, k, remaining)
             dp, tp = standings(race, sprint, year, k)
-            for name, mdl, sig in [("equal_cars", EqualCars(), 0.0)] + [(f"model_s{s}", model, s) for s in SIGMAS]:
-                res = simulate_season(mdl, fut, dp, tp, sprint_rounds, year, team_sigma=sig, n_sims=20_000)
+            kf = filter_through(quali, race, year, k, kparams)
+            variants = ([("equal_cars", EqualCars(), 0.0, None)]
+                        + [(f"model_s{s}", model, s, None) for s in SIGMAS]
+                        + [("kalman", model, 0.0, {"filter": kf})])
+            for name, mdl, sig, kal in variants:
+                res = simulate_season(mdl, fut, dp, tp, sprint_rounds, year, team_sigma=sig, n_sims=20_000,
+                                      kalman=kal)
                 pd_ = res.drivers.set_index("driver")["p_champion"]
                 pt_ = res.teams.set_index("team")["p_champion"]
                 rows.append({
@@ -117,6 +125,15 @@ def main() -> None:
         d = paired_bootstrap(wide[(metric, best)], wide[(metric, "equal_cars")])
         summary[f"{best}_minus_equal_{metric}"] = list(d)
         print(f"\n{best} - equal_cars {metric}: {d[0]:+.3f} [{d[1]:+.3f},{d[2]:+.3f}]")
+    # Kalman phase C (one pre-registered variant) vs the best model variant and equal cars,
+    # all checkpoints and 2021+ only (no tuning look-ahead)
+    late = wide[wide.index.get_level_values("year") >= 2021]
+    for sub, w in (("all", wide), ("2021+", late)):
+        for ref in (best, "equal_cars"):
+            for metric in ("ll_driver", "ll_team"):
+                d = paired_bootstrap(w[(metric, "kalman")], w[(metric, ref)])
+                summary[f"kalman_minus_{ref}_{metric}_{sub}"] = list(d)
+                print(f"kalman - {ref} {metric} ({sub}, {len(w)}): {d[0]:+.3f} [{d[1]:+.3f},{d[2]:+.3f}]")
     print("\nBy races left (best variant), mean P(actual champion):")
     print(df[df["variant"] == best].groupby("races_left")[["p_champion_driver", "p_champion_team"]].mean().round(3).to_string())
 

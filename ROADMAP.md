@@ -143,8 +143,14 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       (+ pre-weekend sd, car, driver), `scripts/gym.py --with-kalman`, scored on 2021-2026 only
       (filter tuned on 2014-2020). vs v5 ll_top3: -0.008 [-0.070, +0.051] / +0.023 [-0.045,
       +0.092]. No gain as race-model inputs (same as the Elo ratings): not shipped.
-- [ ] Kalman phase C: season simulation (posterior draws + random walk instead of the fixed
-      team shock); benchmark championship_backtest.py.
+- [x] Kalman phase C (2026-11-02): `simulate_season(kalman={"filter": kf})` draws car + driver
+      pace from the filter posterior per simulated season and steps the random walk per race
+      (finish model unchanged). championship_backtest 32 checkpoints, champion log loss:
+      drivers kalman 0.307 / model_s0.8 0.389 / equal cars 0.375; constructors 0.334 / 0.353 /
+      0.380. kalman - equal drivers -0.068 [-0.133, -0.008] (first variant to beat equal cars);
+      kalman - model_s0.8 drivers -0.081 [-0.205, +0.042], teams -0.019 (ns). 2021+ (20, no
+      tuning look-ahead): drivers -0.114 [-0.317, +0.078] vs model. model_s0.8 sigma was picked
+      on this backtest; the Kalman variant was pre-registered. Not shipped yet (decision open).
 - [ ] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with
       uncertainty per rating. The cheap version above did not help as an input, so this is low
       priority until Phase 4 gives a stronger benchmark.

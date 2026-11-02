@@ -311,6 +311,48 @@ def run(meas: pd.DataFrame, params: KalmanParams = DEFAULT_PARAMS,
     return out, lls
 
 
+def filter_through(quali: pd.DataFrame, race: pd.DataFrame, year: int, through_round: int,
+                   params: KalmanParams = DEFAULT_PARAMS) -> KalmanStrength:
+    """The filter after every qualifying and race up to (year, through_round)."""
+    def upto(df: pd.DataFrame) -> pd.DataFrame:
+        return df[(df["year"] < year) | ((df["year"] == year) & (df["round"] <= through_round))]
+
+    kf = KalmanStrength(params)
+    run_into(kf, session_measurements(upto(quali)), upto(race))
+    return kf
+
+
+def run_into(kf: KalmanStrength, meas: pd.DataFrame, races: pd.DataFrame) -> None:
+    """Walk `kf` through all weekends of meas / races (no per-row records)."""
+    used = {k: g for k, g in meas.groupby(["year", "round"], sort=True)}
+    ok = races[pd.to_numeric(races["dnf"], errors="coerce").fillna(0) == 0].copy()
+    ok["_fin"] = pd.to_numeric(ok["finish_position"], errors="coerce")
+    ok = ok.dropna(subset=["_fin"]).sort_values(["year", "round", "_fin"])
+    finishers = {k: g for k, g in ok.groupby(["year", "round"], sort=True)}
+    for year, rnd in sorted(set(used) | set(finishers)):
+        kf.advance(int(year))
+        s = used.get((year, rnd))
+        if s is not None:
+            kf.update(s["driver"].astype(str).tolist(), s["team"].astype(str).tolist(),
+                      s["y"].to_numpy(float), s["stage"].to_numpy())
+        f = finishers.get((year, rnd))
+        if f is not None:
+            kf.update_race(f["driver"].astype(str).tolist(), f["team"].astype(str).tolist())
+
+
+def lineup_distribution(kf: KalmanStrength, drivers: list[str],
+                        teams: list[str]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Mean and covariance of car + driver pace for a lineup, and the covariance one
+    race of drift adds (teammates share the car drift)."""
+    idx = [(kf._idx("d", d), kf._idx("c", t)) for d, t in zip(drivers, teams)]
+    H = np.zeros((len(drivers), len(kf.mean)))
+    for r, (di, ci) in enumerate(idx):
+        H[r, di] = H[r, ci] = 1.0
+    same_team = np.equal.outer(np.asarray(teams), np.asarray(teams)).astype(float)
+    step = kf.p.car_drift_sd ** 2 * same_team + kf.p.driver_drift_sd ** 2 * np.eye(len(drivers))
+    return H @ kf.mean, H @ kf.cov @ H.T, step
+
+
 KALMAN_COLS = ["kalman_pace_postq", "kalman_pace_sd", "kalman_car", "kalman_driver"]
 
 
