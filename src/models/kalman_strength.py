@@ -311,6 +311,25 @@ def run(meas: pd.DataFrame, params: KalmanParams = DEFAULT_PARAMS,
     return out, lls
 
 
+KALMAN_COLS = ["kalman_pace_postq", "kalman_pace_sd", "kalman_car", "kalman_driver"]
+
+
+def kalman_features(quali: pd.DataFrame, race: pd.DataFrame,
+                    params: KalmanParams = DEFAULT_PARAMS) -> pd.DataFrame:
+    """Per race entry (year, round, driver): filter state known when the race is predicted.
+
+    kalman_pace_postq is car + driver pace after this weekend's qualifying (before
+    the race); the other columns are as of before the weekend.
+    """
+    meas = session_measurements(quali)
+    rows = race[["year", "round", "driver", "team"]].reset_index(drop=True).assign(src="r")
+    state, _ = run(meas, params, all_sessions=rows, races=race)
+    out = rows.join(state)
+    out = out.rename(columns={"pace_post_quali": "kalman_pace_postq", "pace_sd": "kalman_pace_sd",
+                              "car_pace": "kalman_car", "driver_pace": "kalman_driver"})
+    return out[["year", "round", "driver"] + KALMAN_COLS].drop_duplicates(["year", "round", "driver"])
+
+
 def pl_loglik(score: np.ndarray, order: np.ndarray) -> float:
     """log P(order) under Plackett-Luce with log-strengths `score` (order: indices, best first)."""
     sc = score[order]

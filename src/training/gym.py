@@ -53,6 +53,7 @@ import pandas as pd
 from loguru import logger
 
 from src.features.build_features import FEATURE_COLS
+from src.models.kalman_strength import KALMAN_COLS
 from src.models.race_calibration import RaceCalibration, race_contexts
 from src.models.two_stage import FINISH_COLS
 from src.training.backtest import _race_orders, fit_temperature, make_two_stage_predict, paired_bootstrap
@@ -181,6 +182,12 @@ def _register_defaults() -> None:
                                 "+ team_pit_delta_s (dropped 2026-10-27)"))
     register(add_columns_toggle("add_ratings", RATINGS,
                                 "+ driver/team/car strength ratings (strength_ratings.py)"))
+    # Kalman strength filter (kalman_strength.py); columns merged by scripts/gym.py --with-kalman.
+    # Its hyperparameters were tuned on 2014-2020 results: score on 2021+ only.
+    register(add_columns_toggle("add_kalman", ["kalman_pace_postq"],
+                                "+ Kalman car+driver pace after this weekend's qualifying"))
+    register(add_columns_toggle("add_kalman_all", KALMAN_COLS,
+                                "+ Kalman post-quali pace, pre-weekend sd, car and driver"))
     register(add_columns_toggle("add_overtaking", ["circuit_overtaking"],
                                 "+ circuit overtaking index as a ranker input"))
     register(drop_columns_toggle("drop_reputation", REPUTATION,

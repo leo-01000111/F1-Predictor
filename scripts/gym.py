@@ -43,6 +43,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
+import pandas as pd
 from loguru import logger
 
 from src.features.build_features import load_feature_matrix
@@ -99,6 +100,8 @@ def main() -> None:
                     help="First dev season scored with T=1 (as scripts/backtest.py)")
     ap.add_argument("--n-estimators", type=int, default=None, help="Smoke tests only")
     ap.add_argument("--seeds", type=int, default=None, help="Seed-ensemble size (smoke tests only)")
+    ap.add_argument("--with-kalman", action="store_true",
+                    help="Merge Kalman filter columns (models/experiments/kalman_params.json) into the matrix")
     ap.add_argument("--out-dir", default=str(G.GYM_DIR))
     ap.add_argument("--cache-dir", default=str(G.CACHE_DIR))
     args = ap.parse_args()
@@ -107,6 +110,14 @@ def main() -> None:
     logger.add(sys.stderr, level="INFO", filter=lambda r: r["name"] in ("src.training.gym", "__main__"))
 
     fm = load_feature_matrix()
+    if args.with_kalman:
+        from src.models.kalman_strength import KalmanParams, kalman_features
+        params = KalmanParams(**json.loads((ROOT / "models" / "experiments" / "kalman_params.json").read_text()))
+        raw = ROOT / "data" / "raw"
+        kf = kalman_features(pd.read_parquet(raw / "quali_results.parquet"),
+                             pd.read_parquet(raw / "race_results.parquet"), params)
+        fm = fm.merge(kf, on=["year", "round", "driver"], how="left")
+        logger.info(f"Kalman columns merged: {fm['kalman_pace_postq'].notna().mean():.1%} of rows")
     dev = _years(args.dev)
     lock = _years(args.lockbox)
     if args.toggles:
