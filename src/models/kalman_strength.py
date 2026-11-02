@@ -41,7 +41,9 @@ Hyperparameters: tune() maximises the one-session-ahead predictive likelihood.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, replace
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -309,6 +311,14 @@ def run(meas: pd.DataFrame, params: KalmanParams = DEFAULT_PARAMS,
     if post:
         out["pace_post_quali"] = pd.Series(post)
     return out, lls
+
+
+PARAMS_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "experiments" / "kalman_params.json"
+
+
+def load_params() -> KalmanParams:
+    """Tuned hyperparameters (scripts/kalman_backtest.py --tune writes them)."""
+    return KalmanParams(**json.loads(PARAMS_PATH.read_text()))
 
 
 def filter_through(quali: pd.DataFrame, race: pd.DataFrame, year: int, through_round: int,
