@@ -270,43 +270,48 @@ class PipelineActionRunner:
             "ece_p1_season_mean": summary.get("ece_p1_season_mean"),
         }
 
-    def quick_retrain(self, *, context: ActionContext) -> dict[str, Any]:
+    def _train_with_gate(self, context: ActionContext) -> dict[str, Any]:
+        """Run quick_train: candidate model + promotion gate (src/training/promotion.py)."""
         from scripts.quick_train import main as quick_train_main
 
+        try:
+            gate = quick_train_main() or {}
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
+            gate = {}
+        ll = gate.get("ll_top3") or {}
+        context.log(f"Promotion gate: {gate.get('decision')} ({gate.get('reason')})")
+        if ll:
+            context.log(f"ll_top3 on {gate.get('n_races')} unseen races: candidate {ll['candidate']:.3f}, "
+                        f"current {ll['current']:.3f}, grid {ll['grid']:.3f}")
+        context.log("Updated models/xgb_race.pkl" if gate.get("decision") == "promote"
+                    else "Kept the current models/xgb_race.pkl")
+        return gate
+
+    def quick_retrain(self, *, context: ActionContext) -> dict[str, Any]:
         context.progress(3, "Starting quick retrain (XGBoost only)...")
         context.log("Training can take several minutes.")
         context.check_cancelled()
-        try:
-            quick_train_main()
-        except SystemExit as exc:
-            if exc.code not in (0, None):
-                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
-        context.progress(100, "Quick retrain completed.")
-        context.log("Updated models/xgb_race.pkl")
-        return {"mode": "quick_retrain", "status": "ok"}
+        gate = self._train_with_gate(context)
+        context.progress(100, f"Quick retrain completed (model {gate.get('decision')}).")
+        return {"mode": "quick_retrain", "status": "ok", "promotion": gate}
 
     def full_retrain(self, *, context: ActionContext) -> dict[str, Any]:
-        from scripts.quick_train import main as quick_train_main
-
         context.progress(3, "Starting full retrain...")
         context.log("Training can take several minutes.")
         context.check_cancelled()
-        try:
-            quick_train_main()
-        except SystemExit as exc:
-            if exc.code not in (0, None):
-                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
-        context.progress(100, "Full retrain completed.")
-        context.log("Updated models/xgb_race.pkl")
-        return {"mode": "full_retrain", "status": "ok"}
+        gate = self._train_with_gate(context)
+        context.progress(100, f"Full retrain completed (model {gate.get('decision')}).")
+        return {"mode": "full_retrain", "status": "ok", "promotion": gate}
 
     def post_race_retrain(self, *, year: int, round_num: int, context: ActionContext) -> dict[str, Any]:
         """
         After race round_num completes:
         1. Fetch all completed year races from FastF1 and merge into raw parquet
         2. Rebuild feature matrix
-        3. Retrain XGBoost
-        Reports accuracy before/after.
+        3. Retrain XGBoost (candidate) + promotion gate
+        Reports the gate's decision and top-3 log losses.
         """
         from src.data_collection.f1_live import get_completed_season_race_results
         from src.data_collection.f1_historical import (
@@ -314,8 +319,6 @@ class PipelineActionRunner:
         )
         from src.data_collection.weather import load_weather_history
         from src.features.build_features import build_feature_matrix, save_feature_matrix
-        from src.models.model_registry import load_active_model_metadata
-        from scripts.quick_train import main as quick_train_main
 
         RAW_DIR = self.root / "data" / "raw"
         race_path = RAW_DIR / "race_results.parquet"
@@ -382,30 +385,17 @@ class PipelineActionRunner:
         context.log(f"Feature matrix rebuilt: {len(fm)} rows, {fm.shape[1]} columns.")
         context.check_cancelled()
 
-        # Step 4: retrain
+        # Step 4: retrain a candidate; the promotion gate decides whether it replaces production
         context.progress(55, "Retraining XGBoost on updated dataset...")
-        old_acc = float((load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0)
         context.check_cancelled()
-
-        try:
-            quick_train_main()
-        except SystemExit as exc:
-            if exc.code not in (0, None):
-                raise RuntimeError(f"quick_train exited with code {exc.code}") from None
-
-        new_acc = float((load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0)
-        delta = new_acc - old_acc
-        sign = "+" if delta >= 0 else ""
-        context.log(f"Retrain complete. Holdout accuracy: {old_acc:.1%} -> {new_acc:.1%} ({sign}{delta:.1%})")
-        context.progress(100, f"Post-race retrain complete ({sign}{delta:.1%})")
+        gate = self._train_with_gate(context)
+        context.progress(100, f"Post-race retrain complete (model {gate.get('decision')})")
         return {
             "mode": "post_race_retrain",
             "year": year,
             "rounds_included": n_rounds,
             "new_rows": len(inseason_df),
-            "old_winner_accuracy": round(old_acc, 4),
-            "new_winner_accuracy": round(new_acc, 4),
-            "accuracy_delta": round(delta, 4),
+            "promotion": gate,
         }
 
     def _season_ece_summary(self, year: int) -> dict[str, Any] | None:

@@ -12,8 +12,10 @@ than needed is harmless.
               race_results.parquet: collect race + quali, weather, pit stops
               and sprints for the season, Kalshi market prices (logged only),
               record the result against the
-              prediction (if one was made), retrain with quick_train, then
-              update the championship odds (title_odds).
+              prediction (if one was made), retrain with quick_train (a
+              candidate model, promoted to production only if the promotion
+              gate passes; logged as a `promotion` event), then update the
+              championship odds (title_odds).
   2. predict  Qualifying for the next race ended >= QUALI_DELAY ago, the race
               has not started, and there is no prediction file: run
               race_weekend_inference.
@@ -142,6 +144,19 @@ def _log_model() -> None:
                  train_years=a.get("train_years"),
                  holdout={k: m.get(k) for k in ("holdout_years", "n_holdout_races", "winner_accuracy",
                                                  "podium_accuracy", "mean_log_loss_winner", "temperature")})
+
+
+def _log_promotion(rnd: int, since: str) -> None:
+    """The promotion gate's decision (src/training/promotion.py), from holdout_metrics.json.
+
+    `since`: start of the train step; an older result means quick_train never reached the gate.
+    """
+    gate = _load_json(ROOT / "models" / "holdout_metrics.json").get("promotion") or {}
+    if str(gate.get("checked_at", "")) < since:
+        ci_log.event("promotion", round=rnd, decision=None, reason="no gate result from this run")
+        return
+    print(f"promotion: {gate.get('decision')} ({gate.get('reason')})", flush=True)
+    ci_log.event("promotion", round=rnd, **gate)
 
 
 def _log_title(year: int) -> None:
@@ -276,7 +291,11 @@ def ingest(year: int, done_races: list[dict], now: datetime, dry_run: bool) -> b
         elif not pred.exists():
             _decide("ingest", f"R{rnd} has no prediction file, nothing to score", round=rnd)
 
+    # Retrain writes a candidate; the promotion gate decides whether it replaces production
+    train_start = datetime.now(timezone.utc).isoformat()
     ok &= _run(["scripts/quick_train.py"], dry_run, "train")
+    if not dry_run:
+        _log_promotion(new_rounds[-1], train_start)
     _log_model()
     # Championship odds from the new standings (Phase 5)
     ok &= _run(["scripts/title_odds.py", "--year", y], dry_run, "title_odds")

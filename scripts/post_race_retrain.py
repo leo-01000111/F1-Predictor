@@ -7,8 +7,9 @@ Run this after a race completes and you have recorded the actual result.
 Workflow:
   1. Fetch all completed year races from FastF1 and merge into data/raw/race_results.parquet
   2. Rebuild the full feature matrix (data/processed/feature_matrix.parquet)
-  3. Retrain XGBoost on the updated dataset (2014 -> current)
-  4. Print accuracy before/after
+  3. Retrain XGBoost on the updated dataset (2014 -> current) as a candidate
+  4. Promotion gate: the candidate replaces production only if its top-3 log loss
+     is not clearly worse than the current model's and the grid's (src/training/promotion.py)
 
 Usage:
     python scripts/post_race_retrain.py --year 2026 --round 3
@@ -37,7 +38,6 @@ def main(year: int, round_num: int) -> None:
     )
     from src.data_collection.weather import load_weather_history
     from src.features.build_features import build_feature_matrix, save_feature_matrix
-    from src.models.model_registry import load_active_model_metadata
     from scripts.quick_train import main as quick_train_main
 
     import pandas as pd
@@ -122,32 +122,27 @@ def main(year: int, round_num: int) -> None:
     logger.info(f"Feature matrix saved: {len(fm)} rows, {fm.shape[1]} columns.")
 
     # ------------------------------------------------------------------ #
-    # 4. Retrain
+    # 4. Retrain (candidate) + promotion gate (src/training/promotion.py)
     # ------------------------------------------------------------------ #
-    old_acc = float(
-        (load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0
-    )
-    logger.info(f"Current holdout accuracy before retrain: {old_acc:.1%}")
     logger.info("Retraining XGBoost on updated dataset (2014 -> current year)...")
 
     try:
-        quick_train_main()
+        gate = quick_train_main() or {}
     except SystemExit as exc:
         if exc.code not in (0, None):
             logger.error(f"quick_train exited with code {exc.code}")
             sys.exit(int(exc.code))
+        gate = {}
 
-    new_acc = float(
-        (load_active_model_metadata() or {}).get("winner_accuracy_holdout", 0.0) or 0.0
-    )
-    delta = new_acc - old_acc
-    sign = "+" if delta >= 0 else ""
-
+    ll = gate.get("ll_top3") or {}
     logger.info("=" * 50)
     logger.info(f"Post-race retrain complete for {year} (through R{round_num})")
-    logger.info(f"  Seasons in training: {sorted(merged['year'].unique().tolist())}")
+    logger.info(f"  Seasons in data: {sorted(merged['year'].unique().tolist())}")
     logger.info(f"  {year} rounds included: {n_rounds}")
-    logger.info(f"  Holdout accuracy: {old_acc:.1%} -> {new_acc:.1%} ({sign}{delta:.1%})")
+    logger.info(f"  Promotion gate: {gate.get('decision')} ({gate.get('reason')})")
+    if ll:
+        logger.info(f"  ll_top3 on {gate.get('n_races')} unseen races: candidate {ll['candidate']:.3f}, "
+                    f"current {ll['current']:.3f}, grid {ll['grid']:.3f}")
     logger.info("=" * 50)
     logger.info(f"Next step: run inference after R{round_num + 1} qualifying:")
     logger.info(f"  python scripts/race_weekend_inference.py --year {year} --round {round_num + 1}")

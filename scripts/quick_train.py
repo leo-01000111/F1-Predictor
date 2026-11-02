@@ -9,10 +9,14 @@ Model choice: scripts/backtest.py (walk-forward 2018-2026).
 
 Two-pass strategy:
   Pass 1 (evaluation): honest holdout metrics + evaluation artifacts.
-  Pass 2 (production): retrain on recency-maximised split, overwrite active artifacts.
+  Pass 2 (production): retrain on recency-maximised split -> candidate model.
+  Promotion gate (src/training/promotion.py): the candidate replaces
+  models/xgb_race.pkl + active_model.json only if its top-3 log loss on the
+  races neither model trained on is not clearly worse than the current model's
+  and the grid's. The result is stored as "promotion" in holdout_metrics.json.
 
 Usage:
-    python scripts/quick_train.py
+    python scripts/quick_train.py [--no-gate]
 """
 from __future__ import annotations
 
@@ -67,7 +71,8 @@ def _load_tuned_params(use_tuned: bool) -> "dict | None":
     return params
 
 
-def main() -> None:
+def main() -> dict:
+    """Train and run the promotion gate. Returns the gate result (src/training/promotion.py)."""
     import argparse
     import numpy as np
     import pandas as pd
@@ -75,6 +80,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--use-tuned-params", action="store_true",
                         help="Load XGB params from models/optuna_best_params.json")
+    parser.add_argument("--no-gate", action="store_true",
+                        help="Promote the retrained model without the promotion gate")
     # parse_known_args: post_race_retrain.py calls main() with its own --year/--round in argv
     args, _ = parser.parse_known_args()
 
@@ -180,7 +187,7 @@ def main() -> None:
     cal_df = fm[fm["year"].isin(cal_years)].reset_index(drop=True)
     if not cal_df.empty:
         model.fit_temperature(pd.DataFrame(cal_df[FEATURE_COLS].values, columns=FEATURE_COLS), cal_df)
-    model.save("xgb_race")
+    # Evaluation model: metrics only, never saved over the production pickle
 
     MODELS_DIR = ROOT / "models"
     winner_acc_for_manifest: float | None = None
@@ -285,24 +292,40 @@ def main() -> None:
         prod_model.fit_temperature(
             pd.DataFrame(prod_cal_df[FEATURE_COLS].values, columns=FEATURE_COLS), prod_cal_df
         )
-    prod_model.save("xgb_race")
-    logger.info("Production TwoStageRaceModel saved -> models/xgb_race.pkl")
+    # Candidate first: the production files change only if the gate promotes it
+    from src.models.model_registry import load_active_model_metadata
+    from src.training import promotion
 
+    prod_train_years = [int(y) for y in sorted(prod_train_df["year"].unique())]
+    promotion.save_candidate(prod_model)
+    if args.no_gate:
+        gate = {"decision": "promote", "reason": "--no-gate", "checked_at": promotion.now_utc()}
+    else:
+        gate = promotion.run_gate(prod_model, fm, prod_train_years, load_active_model_metadata())
+    if gate["decision"] != "promote":
+        promotion.record(gate, MODEL_FAMILY)
+        logger.warning(f"Production model kept: {gate['reason']}. "
+                       f"Candidate left at models/{promotion.CANDIDATE_PATH.name}")
+        return gate
+
+    promotion.promote_candidate()
     write_active_model_metadata(
         model_family=MODEL_FAMILY,
         model_artifact="xgb_race.pkl",
         calibrator_artifact=None,
-        train_years=[int(y) for y in sorted(prod_train_df["year"].unique())],
+        train_years=prod_train_years,
         calibration_years=[int(y) for y in prod_cal_years],
         holdout_years=[int(y) for y in holdout_years],
         winner_accuracy=winner_acc_for_manifest,
         source="quick_train.py",
         feature_count=len(FEATURE_COLS),
         feature_cols=FEATURE_COLS,
-        extra={"ranker_params": prod_model.params, "n_seeds": prod_model.n_seeds},
+        extra={"ranker_params": prod_model.params, "n_seeds": prod_model.n_seeds, "promotion": gate},
     )
+    promotion.record(gate, MODEL_FAMILY)
     logger.info("Active model manifest saved -> models/active_model.json")
     logger.info("Quick training complete. Ready for inference.")
+    return gate
 
 
 if __name__ == "__main__":
