@@ -12,6 +12,8 @@ it decided and what data each source had at that moment:
   step        a command: exit code, duration and the tail of its output
   data        row counts / files before and after a step
   prediction  what a prediction used (grid source, sprint, weather) and its top picks
+  promotion   the retrain's promotion gate: candidate / current / grid top-3 log
+              loss on unseen races and whether the candidate replaced production
   tick_end    overall result
 
 scripts/ci_log_report.py turns the log into a per-round timeline

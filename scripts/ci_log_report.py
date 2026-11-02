@@ -83,6 +83,11 @@ def main() -> None:
             if e.get("exit_code") != 0:
                 for line in e.get("tail", [])[-8:]:
                     print(f"        | {line}")
+        elif e["kind"] == "promotion" and e.get("round") == args.rnd:
+            ll = e.get("ll_top3") or {}
+            print(f"  {e['ts']}  promotion: {e.get('decision')} ({e.get('reason')})"
+                  + (f"  ll_top3 cand {ll.get('candidate')} / current {ll.get('current')} / grid {ll.get('grid')}"
+                     if ll else ""))
 
     print("\nPredictions:")
     for e in rows:
