@@ -1,15 +1,15 @@
 {
-  "winner_accuracy": 0.6428571428571429,
-  "podium_accuracy": 0.6984126984126985,
-  "brier_p1": 0.02499407869714286,
-  "mean_spearman_r": 0.6598938056603961,
-  "mean_mae_position": 8.31528886715626,
-  "n_holdout_races": 42,
-  "mean_log_loss_winner": 1.0237122809194716,
+  "winner_accuracy": 0.627906976744186,
+  "podium_accuracy": 0.7131782945736433,
+  "brier_p1": 0.025148371616499444,
+  "mean_spearman_r": 0.6668295197963657,
+  "mean_mae_position": 8.322064353713795,
+  "n_holdout_races": 43,
+  "mean_log_loss_winner": 1.0324993122545154,
   "baselines": {
-    "winner_accuracy_pole": 0.6904761904761905,
-    "podium_accuracy_grid_top3": 0.6984126984126985,
-    "n_races": 42
+    "winner_accuracy_pole": 0.6744186046511628,
+    "podium_accuracy_grid_top3": 0.689922480620155,
+    "n_races": 43
   },
   "beats_baselines": false,
   "holdout_years": [
