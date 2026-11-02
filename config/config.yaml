@@ -91,9 +91,6 @@ model:
     meta_learner: logistic_regression
     cv_folds: 5  # cross-val folds for stacking
 
-  calibration:
-    method: isotonic  # or 'sigmoid' (Platt scaling)
-
 training:
   # Leave-one-season-out cross-validation
   validation_strategy: leave_season_out

@@ -1,5 +1,8 @@
 """
-Calibration utilities.
+Calibration metric (expected calibration error) for evaluation.
+
+Probabilities are not recalibrated after the fact: the Plackett-Luce
+temperature (TwoStageRaceModel.fit_temperature) is the only calibration step.
 """
 from __future__ import annotations
 
