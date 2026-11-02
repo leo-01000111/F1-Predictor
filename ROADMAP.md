@@ -150,7 +150,8 @@ paired bootstrap) and ships only if it helps. One shipped; the rest are built, t
       0.380. kalman - equal drivers -0.068 [-0.133, -0.008] (first variant to beat equal cars);
       kalman - model_s0.8 drivers -0.081 [-0.205, +0.042], teams -0.019 (ns). 2021+ (20, no
       tuning look-ahead): drivers -0.114 [-0.317, +0.078] vs model. model_s0.8 sigma was picked
-      on this backtest; the Kalman variant was pre-registered. Not shipped yet (decision open).
+      on this backtest; the Kalman variant was pre-registered. SHIPPED 2026-11-02: title_odds.py uses it (F1-Predictor efafbb6; site
+      f211e2f adds a 'Title odds' architecture row, EN + FR).
 - [ ] Not attempted before 2026-11-02: a full Kalman / state-space strength model (Lindner et al. 2026) with
       uncertainty per rating. The cheap version above did not help as an input, so this is low
       priority until Phase 4 gives a stronger benchmark.
