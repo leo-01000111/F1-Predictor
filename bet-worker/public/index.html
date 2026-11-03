@@ -8,6 +8,7 @@
   <meta name="robots" content="noindex">
   <link rel="preload" href="/fonts/martian-mono-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/bet.css">
+  <link rel="stylesheet" href="/receipt.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
   <script type="module" src="/bet.js"></script>
@@ -68,8 +69,18 @@
 
       <section class="printer" aria-label="Receipt printer">
         <div class="machine" id="machine">
-          <div class="machine-top"><span class="label">Pit wall bookie · TM-F1</span><span class="lamp" id="lamp"></span></div>
+          <div class="machine-top">
+            <span class="brand">
+              <!-- LG location plate (design/holding-point/lg-mark.svg), recoloured via currentColor for the dark body -->
+              <svg class="lg-mark" viewBox="0 0 64 64" role="img" aria-label="LG"><title>LG · Leon Górecki</title>
+                <rect x="5.5" y="5.5" width="53" height="53" fill="none" stroke="currentColor" stroke-width="3"/>
+                <g fill="currentColor"><rect x="13" y="16" width="7" height="32"/><rect x="13" y="41" width="17" height="7"/><rect x="33" y="16" width="18" height="7"/><rect x="33" y="16" width="7" height="32"/><rect x="33" y="41" width="18" height="7"/><rect x="44" y="30" width="7" height="18"/><rect x="41" y="30" width="10" height="5"/></g>
+              </svg>
+              <span class="label">Pit wall bookie · TM-F1</span>
+            </span><span class="lamp" id="lamp"></span></div>
           <div class="screen" id="screen" role="status">Warming up<span class="dots"></span></div>
+          <!-- runway marking from the site, scaled down -->
+          <svg class="hp-marking" width="100%" height="12" aria-hidden="true"><defs><pattern id="hp-dash" width="18" height="12" patternUnits="userSpaceOnUse"><rect x="0.25" y="4.75" width="10" height="2.5" fill="currentColor"/></pattern></defs><rect width="100%" height="12" fill="url(#hp-dash)"/></svg>
           <div class="mouth"></div>
         </div>
         <div class="clip" id="clip"><article class="paper" id="paper"></article></div>

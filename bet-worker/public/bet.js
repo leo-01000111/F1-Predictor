@@ -116,6 +116,53 @@ async function saveImage(btn, id) {
   }
 }
 
+// ---------------------------------------------------------------- closed state
+
+// [text, lamp] for the printer screen while betting is closed
+function closedScreen(now = Date.now()) {
+  if (race.status === "season_over") return ["Season over", "hold"];
+  if (race.status !== "awaiting_qualifying") return ["Lights out · bets closed", "hold"];
+  const quali = race.quali_utc ? Date.parse(race.quali_utc) : NaN;
+  if (!Number.isFinite(quali)) return ["Opens after qualifying", "wait"];
+  const left = quali - now;
+  if (left <= 0) return ["Qualifying · odds soon", "wait"];
+  const s = Math.floor(left / 1000);
+  const d = Math.floor(s / 86400);
+  const pad = (n) => String(n).padStart(2, "0");
+  const hms = `${pad(Math.floor(s / 3600) % 24)}H ${pad(Math.floor(s / 60) % 60)}M ${pad(s % 60)}S`;
+  return [`Opens in ${d ? d + "D " : ""}${hms}`, "hold"];
+}
+
+function startCountdown() {
+  const tick = () => { const [text, lamp] = closedScreen(); screen(text, lamp); };
+  tick();
+  // Seconds only matter while a countdown is showing
+  if (race.status === "awaiting_qualifying" && race.quali_utc && !reduced) setInterval(tick, 1000);
+  else if (race.status === "awaiting_qualifying" && race.quali_utc) setInterval(tick, 60000);
+  // After qualifying, reload as soon as the prediction is out and betting opens
+  if (race.status === "awaiting_qualifying") {
+    setInterval(async () => {
+      if (race.quali_utc && Date.now() < Date.parse(race.quali_utc)) return;
+      const { ok, data } = await api("/api/race");
+      if (ok && data.open) location.reload();
+    }, 120000);
+  }
+}
+
+async function printClosed() {
+  const raceName = race.status === "season_over" ? "" : `<div class="r-race">${String(race.name).replace(/Grand Prix/i, "GP")}${race.round ? " · R" + race.round : ""}</div>`;
+  const when = race.quali_utc ? `<div class="r-small">qualifying ${localTime(race.quali_utc)}</div>` : "";
+  await feed(`
+    <div class="r-head"><div class="r-title">LEON'S PIT WALL BOOKIE</div><div class="r-sub">bet.leongorecki.eu</div></div>
+    <div class="r-rule"></div>
+    <div class="r-stamp">BETS CLOSED</div>
+    ${raceName}
+    <div class="r-small">${race.status === "season_over" ? "see you in March" : race.status === "awaiting_qualifying" ? "opens after qualifying" : "lights out"}</div>
+    ${when}
+    <div class="r-rule"></div>
+    <div class="r-small">${race.status === "awaiting_qualifying" ? "come back after quali" : "come back next race"}</div>`);
+}
+
 // ---------------------------------------------------------------- flow
 
 async function init() {
@@ -130,13 +177,14 @@ async function init() {
   race = data;
   const raceLine = `${race.name}`;
   if (!race.open) {
-    screen("Bets closed", "hold");
     $("closed-race").textContent = race.status === "season_over" ? "" : raceLine;
     $("closed-msg").textContent =
       race.status === "season_over" ? "Season's over. See you in March."
-      : race.status === "awaiting_qualifying" ? `Betting opens once the model has seen qualifying (${localTime(race.quali_utc)}) and closes at lights out (${localTime(race.race_utc)}).`
+      : race.status === "awaiting_qualifying" ? `Betting opens once the model has seen qualifying${race.quali_utc ? ` (${localTime(race.quali_utc)})` : ""} and closes at lights out${race.race_utc ? ` (${localTime(race.race_utc)})` : ""}.`
       : "Lights are out. Betting is closed for this race.";
     show("step-closed");
+    startCountdown();
+    printClosed();
     return;
   }
   for (const id of ["name-race", "bet-race"]) $(id).textContent = raceLine;

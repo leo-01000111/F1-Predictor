@@ -1,0 +1,37 @@
+/* Receipt polish: thermal paper, rubber stamp, tick/cross. Loaded after bet.css. */
+
+/* ---- thermal paper: fixed colours so it looks the same in light and dark themes */
+.paper {
+  background-color: #fbfaf4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3  0 0 0 0 0.28  0 0 0 0 0.2  0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  color: #2a2a28;
+}
+.r-qr { color: #1b1b1a; }
+
+/* ---- tick / cross */
+.r-cross, .r-tick { display: inline-block; line-height: 0; }
+.r-cross { color: #b0102a; }
+.r-tick { color: #0d6e37; }
+.r-mark { width: .9em; height: .9em; vertical-align: -.1em; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: square; stroke-linejoin: miter; }
+
+/* ---- rubber stamp */
+.r-stamp {
+  --ink: #0d6e37; --tilt: -4deg;
+  display: block; width: fit-content; max-width: 68%; margin: 14px auto 12px;
+  padding: 5px 12px 4px; box-sizing: content-box;
+  border: 4px double var(--ink); border-radius: 8px;
+  color: var(--ink); text-align: center; text-transform: uppercase;
+  font-weight: 800; font-size: 15px; line-height: 1.25; letter-spacing: .1em;
+  transform: rotate(var(--tilt));
+  opacity: .88;
+  mix-blend-mode: multiply;
+  /* worn ink: speckled alpha mask (ignored by html2canvas, which then shows a clean stamp) */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -9 6.2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23w)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -9 6.2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23w)'/%3E%3C/svg%3E");
+  -webkit-mask-size: 120px 120px; mask-size: 120px 120px;
+}
+.stamp-open { --ink: #0d6e37; --tilt: -4deg; }
+.stamp-lost { --ink: #0d6e37; --tilt: 3deg; }
+.stamp-won { --ink: #b0102a; --tilt: -3deg; }
+.stamp-refused { --ink: #b0102a; --tilt: 4deg; }
+.stamp-void { --ink: #6b6a64; --tilt: -5deg; }

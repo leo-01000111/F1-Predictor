@@ -26,9 +26,14 @@ function raceLine(t) {
   return `${esc(String(t.race).replace(/Grand Prix/i, "GP"))} · R${esc(t.round)} · ${date}`;
 }
 
+const mark = (label, d) =>
+  `<svg class="r-mark" viewBox="0 0 16 16" role="img" aria-label="${label}"><path d="${d}"/></svg>`;
+const CROSS = mark("no", "M3 3L13 13M13 3L3 13");
+const TICK = mark("yes", "M2.5 8.5L6.5 12.5L13.5 3.5");
+
 // The model's percentage, then the house's verdict on the claim: ✗ = "you're wrong" (bet taken)
 const modelSays = (p, taken) =>
-  row("MODEL SAYS", `${Math.round(p * 100)}% chance <b class="${taken ? "r-cross" : "r-tick"}">${taken ? "✗" : "✓"}</b>`);
+  row("MODEL SAYS", `${Math.round(p * 100)}% chance <b class="${taken ? "r-cross" : "r-tick"}">${taken ? CROSS : TICK}</b>`);
 const rule = '<div class="r-rule"></div>';
 
 function header() {
@@ -79,7 +84,7 @@ export function ticketHtml(t, origin = location.origin) {
     ${modelSays(t.p, true)}
     ${row("WAGER", esc(t.wager.toUpperCase()))}
     ${rule}
-    <div class="r-stamp ${stamp.cls}">** ${stamp.text} **</div>
+    <div class="r-stamp ${stamp.cls}">${stamp.text}</div>
     ${result}
     ${rule}
     <div class="r-terms">Settled on the official result.<br>No finish counts as no podium.<br>No refunds. No crying.</div>
@@ -99,7 +104,7 @@ export function refusalHtml(r) {
     <div class="r-claim"><span>CLAIM</span><div><b>${esc(c1)}</b><br>${esc(c2)}</div></div>
     ${modelSays(r.claim.p, false)}
     ${rule}
-    <div class="r-stamp stamp-refused">*** BET REFUSED ***</div>
+    <div class="r-stamp stamp-refused">BET REFUSED</div>
     <div class="r-quote">"${esc(r.line)}"</div>
     ${rule}
     <div class="r-small">no ticket issued · try again</div>
@@ -108,7 +113,12 @@ export function refusalHtml(r) {
 
 // Save the paper as a PNG: share sheet on phones (save to photos), download elsewhere
 export async function saveReceiptImage(el, name) {
-  const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 });
+  // html2canvas spreads the paper's inset top shadow over the whole sheet, so the saved copy drops it
+  const canvas = await html2canvas(el, {
+    backgroundColor: null,
+    scale: 2,
+    onclone: (doc) => { doc.getElementById(el.id).style.boxShadow = "none"; },
+  });
   const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
   const file = new File([blob], `${name}.png`, { type: "image/png" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {

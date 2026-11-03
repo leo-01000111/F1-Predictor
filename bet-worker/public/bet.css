@@ -93,6 +93,9 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 @keyframes hum { 50% { transform: translateY(1px); } }
 .machine-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .machine-top .label { color: #8a8d92; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.lg-mark { height: 20px; width: 20px; flex: none; color: var(--signal); }
+.hp-marking { display: block; margin-top: 12px; color: var(--signal); opacity: .85; }
 .lamp { width: 10px; height: 10px; border-radius: 999px; background: #3a3c40; }
 .lamp.go { background: #45c97a; box-shadow: 0 0 10px #45c97a; }
 .lamp.hold { background: #ff3b52; box-shadow: 0 0 10px #ff3b52; }
@@ -105,7 +108,7 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 }
 .screen .dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
-.mouth { height: 22px; margin: 16px -4px 0; position: relative; }
+.mouth { height: 22px; margin: 4px -4px 0; position: relative; }
 .mouth::before { content: ""; position: absolute; left: 22px; right: 22px; top: 8px; height: 6px; background: #000; border-radius: 3px; box-shadow: inset 0 2px 3px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.08); }
 
 .clip { width: min(calc(100% - 48px), 352px); height: 0; overflow: hidden; position: relative; margin-top: -8px; z-index: 1; }
