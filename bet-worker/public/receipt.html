@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bet Ticket</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/bet.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+  <script type="module">
+    import { saveReceiptImage, ticketHtml } from "/receipt.js";
+    const id = location.pathname.split("/").pop();
+    const paper = document.getElementById("paper");
+    const r = await fetch("/api/ticket/" + encodeURIComponent(id));
+    if (r.ok) {
+      const t = await r.json();
+      paper.innerHTML = ticketHtml(t);
+      document.title = `Ticket ${t.id.split("-").slice(0, 3).join("-")}`;
+      document.getElementById("status").textContent =
+        t.status === "open" ? "Waiting for the race result. This page updates once it's in."
+        : t.status === "won" ? `${t.bettor} beat the model.`
+        : t.status === "lost" ? "The model wins this one."
+        : "Void: the driver wasn't classified.";
+      const btn = document.getElementById("save");
+      btn.hidden = false;
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try { await saveReceiptImage(paper, "bet-" + t.id); }
+        catch (e) { console.error(e); btn.textContent = "Screenshot it instead"; }
+        finally { btn.disabled = false; }
+      });
+    } else {
+      paper.innerHTML = '<div class="r-head"><div class="r-title">NO SUCH TICKET</div></div><div class="r-rule"></div><div class="r-small">check the link and try again</div>';
+    }
+  </script>
+</head>
+<body>
+  <main class="wrap">
+    <div class="label"><a href="/">Pit wall bookie</a></div>
+    <h1>Bet ticket</h1>
+    <p class="lede" id="status"></p>
+    <div class="printer">
+      <div class="ticket-solo"><article class="paper" id="paper"></article></div>
+      <div class="after"><button class="btn" id="save" type="button" hidden>Save image</button><a class="btn ghost" href="/">Place a bet</a></div>
+    </div>
+  </main>
+</body>
+</html>

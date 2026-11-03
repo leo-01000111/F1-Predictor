@@ -1,0 +1,31 @@
+# Bet against the model. Deploy from this folder: npx wrangler deploy
+# Secrets (never in the repo): PEPPER, RESEND_API_KEY, MAIL_TO. See README.md.
+
+name = "f1-bets"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+account_id = "132e27a21214b7c61521d15d056889f9"
+workers_dev = false
+
+routes = [
+  { pattern = "bet.leongorecki.eu", custom_domain = true },
+]
+
+# The page, receipt viewer, CSS/JS and fonts. /api/* and /r/* go to the Worker first.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/r/*"]
+
+# Friends (salted name hashes), tickets, per-race slots, rate-limit counters
+[[kv_namespaces]]
+binding = "BETS"
+id = "0aa442fc794f44e7ad6df8f7f11eb01f"
+
+# Settle open tickets once the race result is in the prediction JSON
+[triggers]
+crons = ["17 * * * *"]
+
+[vars]
+RACE_URL = "https://raw.githubusercontent.com/leo-01000111/F1-Predictor/main/site/f1-predictions.json"
+MAIL_FROM = "Pit Wall Bookie <onboarding@resend.dev>"

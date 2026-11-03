@@ -1,0 +1,7 @@
+# Secrets and the plaintext friend list never leave this machine
+.dev.vars
+friends.local.json
+.friends-kv.json
+.dev-race.json
+.wrangler/
+node_modules/

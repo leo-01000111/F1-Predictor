@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pit Wall Bookie</title>
+  <meta name="description" content="Bet against Leon's F1 race model. Friends only.">
+  <meta name="robots" content="noindex">
+  <link rel="preload" href="/fonts/martian-mono-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/bet.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+  <script type="module" src="/bet.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <div class="label"><a href="https://leongorecki.eu/projects/f1predictor.html">leongorecki.eu / F1 predictor</a></div>
+    <h1>Bet against the model</h1>
+    <p class="lede">Pick a driver and say they will (or won't) win or podium. If the model thinks you're wrong, I take the bet. Friends only.</p>
+
+    <div class="layout">
+      <section class="panel" aria-live="polite">
+        <div id="step-loading"><p class="label">Loading the race</p></div>
+
+        <div id="step-closed" hidden>
+          <h2>Bets closed</h2>
+          <p class="race" id="closed-race"></p>
+          <p id="closed-msg" class="muted"></p>
+        </div>
+
+        <form id="step-name" hidden autocomplete="on">
+          <h2>Who's asking?</h2>
+          <p class="race" id="name-race"></p>
+          <label class="field"><span class="label">First name</span>
+            <input type="text" id="first" name="given-name" autocomplete="given-name" maxlength="40" required></label>
+          <label class="field"><span class="label">Last name (optional, goes on the ticket)</span>
+            <input type="text" id="last" name="family-name" autocomplete="family-name" maxlength="30"></label>
+          <button class="btn wide" type="submit">Let me in</button>
+          <p class="error" id="name-error"></p>
+        </form>
+
+        <form id="step-bet" hidden>
+          <h2 id="hello"></h2>
+          <p class="race" id="bet-race"></p>
+          <label class="field"><span class="label">Driver</span><select id="driver" required></select></label>
+          <div class="field"><span class="label">Will they</span>
+            <div class="seg">
+              <label><input type="radio" name="negate" value="0" checked><span>Will</span></label>
+              <label><input type="radio" name="negate" value="1"><span>Will not</span></label>
+            </div></div>
+          <div class="field"><span class="label">Outcome</span>
+            <div class="seg">
+              <label><input type="radio" name="event" value="win" checked><span>Win</span></label>
+              <label><input type="radio" name="event" value="podium"><span>Podium</span></label>
+            </div></div>
+          <label class="field"><span class="label">Wager</span><select id="wager"></select></label>
+          <p class="preview" id="preview"></p>
+          <button class="btn wide" type="submit" id="place">Place bet</button>
+          <p class="error" id="bet-error"></p>
+          <p class="small muted">One accepted ticket per race. Bets close at lights out.</p>
+        </form>
+
+        <div id="step-done" hidden>
+          <h2 id="done-title"></h2>
+          <p id="done-msg" class="muted"></p>
+        </div>
+      </section>
+
+      <section class="printer" aria-label="Receipt printer">
+        <div class="machine" id="machine">
+          <div class="machine-top"><span class="label">Pit wall bookie · TM-F1</span><span class="lamp" id="lamp"></span></div>
+          <div class="screen" id="screen" role="status">Warming up<span class="dots"></span></div>
+          <div class="mouth"></div>
+        </div>
+        <div class="clip" id="clip"><article class="paper" id="paper"></article></div>
+        <div class="after" id="after" hidden></div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
