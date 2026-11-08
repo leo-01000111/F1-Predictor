@@ -28,11 +28,17 @@ import pandas as pd
 from src.models.two_stage import simulate_logw, top_k_nll_logw
 
 OVT_REF, OVT_SCALE = 0.2, 0.05
+# Quali reliability (src/features/quali_features.py): 2014-2026 race means / stds
+QSH_REF, QSH_SCALE = 0.146, 0.041      # quali_shuffle
+QSP_REF, QSP_SCALE = 1.16, 0.59        # quali_spread_pct
 
 GRIDS = {
     "temperature": list(np.round(np.geomspace(0.3, 3.0, 25), 3)),
     "rating_weight": [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0],
     "overtaking_slope": [-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3],
+    "quali_shuffle_slope": [-0.2, -0.1, -0.05, 0.0, 0.05, 0.1, 0.2, 0.3],
+    "sprint_slope": [-0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
+    "quali_spread_slope": [-0.2, -0.1, -0.05, 0.0, 0.05, 0.1, 0.2, 0.3],
     "sc_scale": [0.0, 1.0, 2.0, 4.0, 8.0],
     "sc_flatten": [0.25, 0.5, 0.75],
     "lambda_2": list(np.round(np.arange(0.3, 1.51, 0.05), 2)),
@@ -48,6 +54,9 @@ class RaceContext:
     car_rating: np.ndarray
     overtaking: float          # circuit_overtaking
     sc_rate: float             # circuit_safety_car_rate
+    quali_shuffle: float = QSH_REF
+    quali_spread: float = QSP_REF
+    sprint: float = 0.0
 
 
 @dataclass
@@ -55,6 +64,9 @@ class RaceCalibration:
     temperature: float = 1.0
     rating_weight: float = 0.0
     overtaking_slope: float = 0.0
+    quali_shuffle_slope: float = 0.0
+    quali_spread_slope: float = 0.0
+    sprint_slope: float = 0.0
     sc_scale: float = 0.0
     sc_flatten: float = 0.5
     lambda_2: float = 1.0
@@ -63,7 +75,10 @@ class RaceCalibration:
 
     def log_strength(self, r: RaceContext) -> np.ndarray:
         z = (r.overtaking - OVT_REF) / OVT_SCALE
-        t_race = self.temperature * np.exp(self.overtaking_slope * z)
+        zq = (r.quali_shuffle - QSH_REF) / QSH_SCALE
+        zs = (r.quali_spread - QSP_REF) / QSP_SCALE
+        t_race = self.temperature * np.exp(self.overtaking_slope * z + self.quali_shuffle_slope * zq
+                                           + self.quali_spread_slope * zs + self.sprint_slope * r.sprint)
         return (r.raw + self.rating_weight * r.car_rating) / t_race
 
     @property
@@ -116,7 +131,12 @@ def race_contexts(df: pd.DataFrame, raw: np.ndarray, q: np.ndarray) -> list[tupl
     rating = pd.to_numeric(df.get("car_rating", 0.0), errors="coerce").fillna(0.0).to_numpy()
     ovt = pd.to_numeric(df.get("circuit_overtaking", OVT_REF), errors="coerce").fillna(OVT_REF).to_numpy()
     sc = pd.to_numeric(df.get("circuit_safety_car_rate", 0.0), errors="coerce").fillna(0.0).to_numpy()
+    qsh = pd.to_numeric(df.get("quali_shuffle", QSH_REF), errors="coerce").fillna(QSH_REF).to_numpy()
+    spr = pd.to_numeric(df.get("is_sprint_weekend", 0.0), errors="coerce").fillna(0.0).to_numpy()
+    qsp = pd.to_numeric(df.get("quali_spread_pct", QSP_REF), errors="coerce").fillna(QSP_REF).to_numpy()
     for key, idx in df.groupby(["year", "round"]).indices.items():
         out.append((key, idx, RaceContext(raw=raw[idx], q=q[idx], car_rating=rating[idx],
-                                          overtaking=float(ovt[idx[0]]), sc_rate=float(sc[idx[0]]))))
+                                          overtaking=float(ovt[idx[0]]), sc_rate=float(sc[idx[0]]),
+                                          quali_shuffle=float(qsh[idx[0]]), quali_spread=float(qsp[idx[0]]),
+                                          sprint=float(spr[idx[0]]))))
     return out

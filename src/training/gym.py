@@ -197,6 +197,15 @@ def _register_defaults() -> None:
         fts = PRACTICE_FIRST_TEST if g == "practice" else None
         register(drop_columns_toggle(f"drop_{g}", cols, f"- feature group '{g}' ({len(cols)})",
                                      first_test_season=fts))
+    # Quali reliability features (src/features/quali_features.py)
+    register(add_columns_toggle("q_race", ["quali_spread_pct", "quali_segment_order", "quali_shuffle"],
+                                "+ race-level quali reliability: Q3 spread, segment order, shuffle vs form"))
+    register(add_columns_toggle("q_prior", ["quali_vs_prior"],
+                                "+ quali position vs the driver's recent quali form"))
+    # Domain-knowledge features (src/features/domain_features.py), one toggle per group
+    from src.features.domain_features import GROUPS as DOMAIN_GROUPS
+    for g, cols in DOMAIN_GROUPS.items():
+        register(add_columns_toggle(f"dom_{g}", cols, f"+ domain features '{g}': {', '.join(cols)}"))
     register(Toggle("mono", "model", "monotone constraints: worse grid / bigger quali gap -> lower score",
                     apply=lambda s, on: replace(s, monotone=bool(on)), phase=2))
     register(Toggle("half_life", "model", "exponential recency weights, half-life in years (None = linear 0.65-1.35)",
@@ -216,6 +225,10 @@ def _register_defaults() -> None:
                     values=(None, "fit", 0.5), fit_params=("rating_weight",)))
     register(Toggle("overtaking_t", "posthoc", "per-race T scaled by the circuit overtaking index",
                     fit_params=("overtaking_slope",)))
+    register(Toggle("quali_t", "posthoc", "per-race T scaled by quali reliability (shuffle vs form, Q3 spread)",
+                    fit_params=("quali_shuffle_slope", "quali_spread_slope")))
+    register(Toggle("sprint_t", "posthoc", "per-race T scaled on sprint weekends (failure analysis)",
+                    fit_params=("sprint_slope",)))
     register(Toggle("safety_car", "posthoc", "safety-car mixture with a flatter order",
                     fit_params=("sc_scale", "sc_flatten")))
     register(Toggle("benter", "posthoc", "Benter exponents for places 2 and 3",

@@ -35,6 +35,8 @@ from src.features.driver_features import (
 )
 from src.features.circuit_features import add_grid_conversion, add_overtaking_index
 from src.features.practice_pace import add_practice_pace
+from src.features.domain_features import add_domain_features
+from src.features.quali_features import QUALI_RELIABILITY_COLS, add_quali_reliability
 from src.features.team_features import (
     add_constructor_standing,
     add_team_reliability,
@@ -265,6 +267,13 @@ def build_feature_matrix(
     # Car pace delta: constructor-level median quali gap vs fastest constructor
     df = add_car_pace_delta(df)
 
+    # Quali reliability: spread, segment order, shuffle vs recent form
+    # (src/features/quali_features.py; same function at inference)
+    if "quali_best_time_s" in quali_df.columns:
+        qrel = add_quali_reliability(canonicalize_teams(quali_df))
+        df = df.drop(columns=QUALI_RELIABILITY_COLS, errors="ignore")
+        df = df.merge(qrel, on=["year", "round", "driver"], how="left")
+
     # ------------------------------------------------------------------ #
     # 2b. Grid penalty (requires quali_position_from_q and grid_position)
     # ------------------------------------------------------------------ #
@@ -372,6 +381,10 @@ def build_feature_matrix(
             logger.info("No practice_laps.parquet; long-run features stay missing. "
                         "Run: python -m src.data_collection.practice_openf1")
     df = add_practice_pace(df, practice_laps)
+
+    # Domain-knowledge features (src/features/domain_features.py): extra columns,
+    # in FEATURE_COLS only once the gym shows they help
+    df = add_domain_features(df)
 
     # ------------------------------------------------------------------ #
     # 5. Ensure all feature columns exist; fill missing with medians
