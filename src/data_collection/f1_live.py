@@ -245,15 +245,57 @@ def _to_float_series(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce")
 
 
+QUALI_COLS = ["driver_number", "driver_abbr", "team", "quali_position", "best_lap_time_s", "quali_gap_to_pole_s"]
+
+
 def get_quali_results(session_key: int) -> pd.DataFrame:
     """
     Pull qualifying position data for a given session_key.
-    Returns DataFrame with columns: driver_number, driver_abbr, team, position, best_lap_time_s
+    Returns DataFrame with columns QUALI_COLS.
+
+    Uses the official classification (OpenF1 session_result) and, like training
+    (f1_historical._extract_quali_result), each driver's time from the last segment
+    they reached (Q3, else Q2, else Q1), with the gap to the fastest of those times.
+    Ranking by the fastest lap anywhere in the session breaks when conditions change
+    between segments (2026 R20: Q2 faster than Q3 put VER P13 instead of P16).
+    Falls back to the lap data when session_result is not published yet.
     """
-    # Fetch drivers in this session
     drivers_raw = _get("drivers", {"session_key": session_key})
     drivers = {d["driver_number"]: d for d in drivers_raw}
 
+    try:
+        results_raw = _get("session_result", {"session_key": session_key})
+    except Exception as exc:
+        logger.warning(f"session_result unavailable for session_key={session_key}: {exc}")
+        results_raw = []
+    rows = []
+    for r in results_raw:
+        num, pos = r.get("driver_number"), r.get("position")
+        if num is None or pos is None:
+            continue
+        durations = r.get("duration")
+        if not isinstance(durations, list):
+            durations = [durations]
+        times = [float(t) for t in durations if t is not None and pd.notna(t)]
+        rows.append({
+            "driver_number": num,
+            "driver_abbr": drivers.get(num, {}).get("name_acronym", str(num)),
+            "team": canonical_team(drivers.get(num, {}).get("team_name", "Unknown")),
+            "quali_position": int(pos),
+            "best_lap_time_s": times[-1] if times else float("nan"),
+        })
+    if rows:
+        df = pd.DataFrame(rows).sort_values("quali_position").reset_index(drop=True)
+        df["quali_gap_to_pole_s"] = df["best_lap_time_s"] - df["best_lap_time_s"].min()
+        logger.info(f"session_key={session_key}: official quali classification, {len(df)} drivers")
+        return df[QUALI_COLS]
+
+    logger.warning(f"session_key={session_key}: no session_result yet, ranking by fastest lap")
+    return _quali_from_laps(session_key, drivers)
+
+
+def _quali_from_laps(session_key: int, drivers: dict) -> pd.DataFrame:
+    """Fallback: rank by each driver's fastest lap in the session (wrong in mixed conditions)."""
     # Fetch laps for this qualifying session
     laps_raw = _get("laps", {"session_key": session_key})
     laps_df = pd.DataFrame(laps_raw)
@@ -300,7 +342,7 @@ def get_quali_results(session_key: int) -> pd.DataFrame:
     pole_time = best_laps["best_lap_time_s"].iloc[0]
     best_laps["quali_gap_to_pole_s"] = best_laps["best_lap_time_s"] - pole_time
 
-    return best_laps[["driver_number", "driver_abbr", "team", "quali_position", "best_lap_time_s", "quali_gap_to_pole_s"]]
+    return best_laps[QUALI_COLS]
 
 
 def get_practice_results(
