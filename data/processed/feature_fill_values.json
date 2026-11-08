@@ -6,7 +6,7 @@
   "car_pace_delta_pct": 3.0,
   "driver_form_5": 11.2,
   "driver_form_10": 11.3,
-  "driver_form_ewm": 11.1478001658593,
+  "driver_form_ewm": 11.156436033724916,
   "circuit_avg_finish": 10.0,
   "circuit_podiums": 0.0,
   "circuit_appearances": 2.0,
@@ -24,14 +24,14 @@
   "humidity_pct_mean": 71.25,
   "is_wet_race": 0.0,
   "round_fraction": 0.5,
-  "driver_elo": 1511.4709576771581,
+  "driver_elo": 1511.2215572946582,
   "driver_wet_avg_finish": 10.875,
-  "circuit_grid_conversion": 12.0,
-  "championship_pressure": 0.4857142857142857,
+  "circuit_grid_conversion": 11.971428571428572,
+  "championship_pressure": 0.4909090909090909,
   "team_form_5": 8.6,
   "grid_penalty_places": 0.0,
   "sprint_position_rel": 0.5,
   "driver_experience_norm": 0.67,
   "fp_longrun_gap_pct": 0.0,
-  "team_longrun_gap_pct": -0.25041672654115277
+  "team_longrun_gap_pct": -0.2508732770210492
 }

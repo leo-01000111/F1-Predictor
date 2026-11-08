@@ -1,8 +1,7 @@
 {
-  "generated_at": "2026-11-02T02:49:30.022793+00:00",
+  "generated_at": "2026-11-08T23:16:08.997009+00:00",
   "model_family": "two_stage_v5",
   "model_artifact": "xgb_race.pkl",
-  "calibrator_artifact": null,
   "train_years": [
     2014,
     2015,
@@ -24,7 +23,7 @@
     2025,
     2026
   ],
-  "winner_accuracy_holdout": 0.627906976744186,
+  "winner_accuracy_holdout": 0.6363636363636364,
   "source": "quick_train.py",
   "feature_count": 35,
   "feature_cols": [
@@ -76,5 +75,39 @@
     "n_jobs": -1,
     "random_state": 42
   },
-  "n_seeds": 5
+  "n_seeds": 5,
+  "promotion": {
+    "decision": "promote",
+    "reason": "candidate vs current -0.017, vs grid -0.825: not clearly worse",
+    "checked_at": "2026-11-08T23:16:08.994029+00:00",
+    "thresholds": {
+      "max_worse_vs_current": 0.05,
+      "max_worse_vs_grid": 0.0,
+      "min_eval_races": 5
+    },
+    "eval_years": [
+      2026
+    ],
+    "n_races": 20,
+    "ll_top3": {
+      "candidate": 4.4908,
+      "current": 4.5076,
+      "grid": 5.316
+    },
+    "median_temperature": {
+      "candidate": 0.66,
+      "current": 0.66,
+      "grid": 2.02
+    },
+    "candidate_minus_current": [
+      -0.0168,
+      -0.036,
+      -0.0001
+    ],
+    "candidate_minus_grid": [
+      -0.8251,
+      -1.8253,
+      -0.0431
+    ]
+  }
 }
