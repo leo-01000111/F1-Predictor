@@ -337,6 +337,15 @@ def run_inference(
         "p_top10": prob_matrix[:, :min(10, n_pos)].sum(axis=1),
     }
 
+    # 6b. Per-driver explanation: feature-group contributions to the pace score,
+    # relative to the field (src/models/explain.py). Never blocks a prediction.
+    try:
+        from src.models.explain import explain_race
+        why = explain_race(model, X_df)
+    except Exception as exc:
+        logger.warning(f"Explanations skipped: {exc}")
+        why = [None] * len(feat_df)
+
     # 7. Format output
     predictions = []
     for i, (_, row) in enumerate(feat_df.iterrows()):
@@ -353,6 +362,7 @@ def run_inference(
                 "p_top6": float(round(min(probs["p_top6"][i], 1.0), 4)),
                 "p_top10": float(round(min(probs["p_top10"][i], 1.0), 4)),
                 "p_finish": None if finish_probs is None else float(round(finish_probs[i], 4)),
+                "why": why[i],
             }
         )
 

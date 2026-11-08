@@ -75,20 +75,7 @@ def _calendar(year: int) -> dict[int, dict]:
 
 
 # Feature groups shown on the site, in FEATURE_COLS terms
-FEATURE_GROUPS: dict[str, list[str]] = {
-    "qualifying": ["grid_position", "quali_gap_relative", "grid_position_rel", "teammate_quali_delta",
-                   "grid_penalty_places", "circuit_grid_conversion"],
-    "car": ["car_pace_delta_pct", "constructor_standing", "team_cum_points", "team_form_5"],
-    "driver": ["driver_form_5", "driver_form_10", "driver_form_ewm", "driver_elo", "driver_experience_norm",
-               "driver_wet_avg_finish"],
-    "championship": ["championship_position", "cum_points_before", "championship_pressure", "round_fraction"],
-    "circuit": ["circuit_avg_finish", "circuit_podiums", "circuit_appearances", "is_street_circuit",
-                "circuit_safety_car_rate"],
-    "reliability": ["dnf_rate", "team_reliability_rate"],
-    "weather": ["temp_c_mean", "precip_mm_total", "windspeed_ms_mean", "humidity_pct_mean", "is_wet_race"],
-    "sprint": ["sprint_position_rel"],
-    "practice": ["fp_longrun_gap_pct", "team_longrun_gap_pct"],
-}
+from src.models.explain import FEATURE_GROUPS  # noqa: E402  (shared with the per-driver explanations)
 
 
 def _importance(years: list[int]) -> list[dict]:
@@ -146,6 +133,8 @@ def _driver_rows(pred: dict) -> list[dict]:
             "p_podium": round(float(p.get("p_podium", 0)), 4),
             "p_top10": round(float(p.get("p_top10", 0)), 4),
             "p_finish": p.get("p_finish"),
+            # feature-group pull vs the field (src/models/explain.py); absent before 2026-11-08
+            **({"why": p["why"]} if p.get("why") else {}),
         }
         for p in rows
     ]
