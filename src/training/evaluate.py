@@ -1,5 +1,5 @@
 """
-Model evaluation metrics (v2 — regression + Plackett-Luce).
+Model evaluation metrics (score model + Plackett-Luce / two-stage simulation).
 """
 from __future__ import annotations
 
@@ -80,7 +80,11 @@ def evaluate_race_predictions(
         else:
             corr = None
 
-        mae = float(np.abs(race_pred_pos[valid] - actual_pos[valid]).mean()) if valid.sum() > 0 else None
+        # Expected finishing position from the simulation. The model output itself
+        # is a ranker score (-score / T), not a position, so |pred - actual| on it
+        # was meaningless (8.3 "places" in holdout_metrics.json).
+        expected_pos = prob_matrix @ np.arange(1, prob_matrix.shape[1] + 1)
+        mae = float(np.abs(expected_pos[valid] - actual_pos[valid]).mean()) if valid.sum() > 0 else None
 
         ece_p1 = expected_calibration_error(p1_probs, group["p1"].values, n_bins=10)
 

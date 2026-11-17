@@ -49,12 +49,7 @@ python scripts/quick_train.py
 
 <!-- TODO: add measured training time for quick_train.py -->
 
-The production ranker's settings come from `scripts/tune_ranker.py` (walk-forward, picked on 2018-2022). The Optuna search below tunes the archived regressor (`XGBRacePredictor`) and does not affect the production model:
-```bash
-python scripts/tune_hyperparams.py --n-trials 60 --timeout 900
-python scripts/quick_train.py --use-tuned-params
-```
-`tune_hyperparams.py` also accepts `--holdout-years 2024 2025`. It saves the best parameters to `models/optuna_best_params.json`.
+The production ranker's settings come from `scripts/tune_ranker.py` (walk-forward, picked on 2018-2022). `scripts/tune_hyperparams.py` (Optuna) tunes the archived regressor (`XGBRacePredictor`) only; `quick_train.py` no longer reads its output.
 
 ### 5. Race weekend inference (after qualifying)
 ```bash
@@ -192,4 +187,4 @@ Settings are defined in `config/settings.py` and read from environment variables
 
 ## Notes
 
-`ROADMAP.md` holds the longer plan and every experiment's result; `TODO_FP_MIGRATION.md` (not committed) is the working log. `scripts/pipeline_after_ratelimit.py` is a one-off leftover.
+`ROADMAP.md` holds the longer plan and every experiment's result; `TODO_FP_MIGRATION.md` (not committed) is the working log.

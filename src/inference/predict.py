@@ -290,23 +290,9 @@ def run_inference(
             med = feat_df[col].median()
             feat_df[col] = feat_df[col].fillna(med if not feat_df[col].isna().all() else 0.0)
 
-    # Categorical encoding with explicit unknown=0 index
-    try:
-        hist_fm = load_feature_matrix()
-        for col in ["driver", "team", "circuit_key"]:
-            cat = pd.Categorical(hist_fm[col])
-            raw_codes = pd.Categorical(feat_df[col], categories=cat.categories).codes
-            feat_df[f"{col}_idx"] = np.where(raw_codes < 0, 0, raw_codes + 1)
-    except Exception:
-        for col in ["driver", "team", "circuit_key"]:
-            feat_df[f"{col}_idx"] = 0
-
     X = feat_df[FEATURE_COLS].values
-    driver_idx = feat_df["driver_idx"].values.astype(int)
-    team_idx = feat_df["team_idx"].values.astype(int)
-    circuit_idx = feat_df["circuit_key_idx"].values.astype(int)
 
-    # 5. Model inference. xgb_race.pkl is the v3 ranker; its predict() already
+    # 5. Model inference. xgb_race.pkl is a ranker (v5: TwoStageRaceModel); its predict() already
     # divides by the fitted PL temperature, so the sampler below keeps T=1.
     from src.models.xgb_model import XGBRacePredictor
 

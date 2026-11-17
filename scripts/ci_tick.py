@@ -16,6 +16,8 @@ than needed is harmless.
               candidate model, promoted to production only if the promotion
               gate passes; logged as a `promotion` event), then update the
               championship odds (title_odds).
+              An ingested round without weather (Open-Meteo failed at ingest)
+              is fetched again on later ticks, followed by a retrain.
   2. predict  Qualifying for the next race ended >= QUALI_DELAY ago, the race
               has not started, and there is no prediction file: run
               race_weekend_inference.
@@ -230,6 +232,43 @@ def _ingested_rounds(year: int) -> set[int]:
     return set(r.loc[r["year"] == year, "round"].astype(int))
 
 
+def _weather_rounds(year: int) -> set[int]:
+    """Rounds of the season that have a row in weather_history.parquet."""
+    import pandas as pd
+
+    path = RAW_DIR / "weather_history.parquet"
+    if not path.exists():
+        return set()
+    w = pd.read_parquet(path, columns=["year", "round"])
+    return set(w.loc[w["year"] == year, "round"].astype(int))
+
+
+def _retry_weather(year: int, ingested: set[int], dry_run: bool) -> bool:
+    """Fetch the weather of ingested rounds that have none, then retrain.
+
+    The weather step exits 0 when Open-Meteo times out for a race (2026 R20), and
+    ingest only runs when a round is missing from race_results, so that race kept
+    median weather and is_wet_race = 0 in training until the next race two weeks
+    later (the season finale until the next season).
+    """
+    missing = sorted(ingested - _weather_rounds(year))
+    if not missing:
+        return True
+    _decide("ingest", f"weather missing for rounds {missing}, fetching", missing_weather=missing)
+    ok = _run(["-m", "src.data_collection.weather", "--years", str(year)], dry_run, "ingest")
+    if dry_run:
+        return ok
+    filled = sorted(set(missing) & _weather_rounds(year))
+    if not filled:
+        _decide("ingest", f"weather for rounds {missing} still unavailable, will retry next tick")
+        return ok
+    train_start = datetime.now(timezone.utc).isoformat()
+    ok &= _run(["scripts/quick_train.py"], dry_run, "train")
+    _log_promotion(filled[-1], train_start)
+    _log_model()
+    return ok
+
+
 def market_snapshot(year: int, events: list[dict], now: datetime) -> None:
     """From qualifying to lights out: save the live Kalshi books of the next race.
 
@@ -256,7 +295,7 @@ def ingest(year: int, done_races: list[dict], now: datetime, dry_run: bool) -> b
     missing = [e for e in done_races if e["round"] not in before]
     if not missing:
         _decide("ingest", f"nothing to do ({len(before)} {year} rounds in race_results)")
-        return True
+        return _retry_weather(year, before, dry_run)
     _decide("ingest", f"rounds {[e['round'] for e in missing]} missing, collecting {year}",
             missing=[e["round"] for e in missing],
             hours_since_race={e["round"]: round((now - e["race"]).total_seconds() / 3600, 2) for e in missing})

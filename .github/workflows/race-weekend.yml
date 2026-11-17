@@ -70,5 +70,8 @@ jobs:
             echo "No changes."
           else
             git commit -m "chore: race weekend update [skip ci]"
+            # A commit pushed while the tick ran (code change, keepalive) made the
+            # push fail and the tick's prediction / ingest was lost until the next run
+            git pull --rebase
             git push
           fi

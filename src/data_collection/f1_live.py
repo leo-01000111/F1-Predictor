@@ -54,7 +54,7 @@ def _session_candidates(session_type: str) -> list[str]:
 
 
 def _fp_session_index(session_type: str) -> Optional[int]:
-    """Return 0-based index for FP sessions (FP1ďż˝0, FP2ďż˝1, FP3ďż˝2), or None if not FP."""
+    """Return 0-based index for FP sessions (FP1 -> 0, FP2 -> 1, FP3 -> 2), or None if not FP."""
     upper = str(session_type).upper().replace(" ", "")
     if upper.startswith("FP") and len(upper) > 2:
         idx = upper[2:]
@@ -445,6 +445,32 @@ def get_practice_results(
     return pd.DataFrame(rows)
 
 
+def _race_date(year: int, round_number: int, quali_session: dict) -> str:
+    """Race day (YYYY-MM-DD) of the round.
+
+    Training's race_date is the FastF1 calendar's EventDate (f1_historical), so
+    that is tried first; then the OpenF1 race session of the same meeting; the
+    qualifying session's own date is the last resort.
+    """
+    try:
+        import fastf1
+
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        rows = schedule[schedule["RoundNumber"] == round_number]
+        if not rows.empty and pd.notna(rows.iloc[0]["EventDate"]):
+            return str(rows.iloc[0]["EventDate"].date())
+    except Exception as exc:
+        logger.debug(f"FastF1 schedule lookup failed for the race date: {exc}")
+    try:
+        races = _get("sessions", {"meeting_key": quali_session["meeting_key"], "session_name": "Race"})
+        if races and races[0].get("date_start"):
+            return str(races[0]["date_start"])[:10]
+    except Exception as exc:
+        logger.debug(f"OpenF1 race session lookup failed: {exc}")
+    logger.warning(f"No race date for {year} R{round_number}; using the qualifying session's date")
+    return quali_session.get("date_end", "")[:10] if quali_session.get("date_end") else ""
+
+
 def get_live_quali_dataframe(year: int, round_number: int) -> pd.DataFrame:
     """
     High-level function: given a year and round, return a clean quali DataFrame
@@ -458,7 +484,10 @@ def get_live_quali_dataframe(year: int, round_number: int) -> pd.DataFrame:
     session_key = session["session_key"]
     circuit = session.get("location", "Unknown")
     circuit_key = session.get("circuit_short_name", "unknown").lower().replace(" ", "_")
-    race_date = session.get("date_end", "")[:10] if session.get("date_end") else ""
+    # The race's date, not the qualifying session's: the weather forecast is
+    # fetched for race_date, and qualifying is the day before (R19/R20 2026 were
+    # predicted with Saturday's forecast)
+    race_date = _race_date(year, round_number, session)
 
     df = get_quali_results(session_key)
     if df.empty:

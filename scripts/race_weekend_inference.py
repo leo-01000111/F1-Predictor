@@ -115,7 +115,13 @@ def main(
     # ------------------------------------------------------------------ #
     # 1b. Append completed in-season races so rolling features are current
     # ------------------------------------------------------------------ #
-    if round_num > 1:
+    stored = set(race_df_history.loc[race_df_history["year"] == year, "round"].astype(int))
+    if set(range(1, round_num)) <= stored:
+        # The usual case in CI (every race is ingested 4 h after it ends): no
+        # need to load each earlier round from FastF1 only to discard it
+        logger.info(f"All {year} rounds before R{round_num} are already in race_results.parquet")
+        inputs["in_season_rounds_added"] = []
+    elif round_num > 1:
         logger.info(f"Fetching completed {year} race results (rounds 1-{round_num - 1})...")
         inseason_df = get_completed_season_race_results(year, max_round=round_num)
         if not inseason_df.empty:

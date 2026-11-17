@@ -11,7 +11,6 @@ still load through FastF1's Ergast/Jolpica fallback.
 """
 from __future__ import annotations
 
-import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -441,8 +440,15 @@ def collect_historical(
     start_year: int = 2014,
     end_year: int = 2024,
     sleep_between_sessions: float = 1.0,
+    save_progress: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Pull Race and Qualifying results for all rounds. Returns (race_df, quali_df)."""
+    """Pull Race and Qualifying results for all rounds. Returns (race_df, quali_df).
+
+    save_progress writes the collected years to the raw parquets after each year.
+    It must be off when merging into existing files: the partial write holds only
+    the new years, so an interrupted run (CI timeout) would leave, and commit,
+    a race_results.parquet without the older seasons.
+    """
     all_race_rows: list[pd.DataFrame] = []
     all_quali_rows: list[pd.DataFrame] = []
 
@@ -472,8 +478,9 @@ def collect_historical(
             time.sleep(sleep_between_sessions)
 
         # Save after each year so progress is never lost on interrupt
-        _save_incremental(all_race_rows, all_quali_rows)
-        logger.info(f"  Saved progress after {year}")
+        if save_progress:
+            _save_incremental(all_race_rows, all_quali_rows)
+            logger.info(f"  Saved progress after {year}")
 
     race_df = pd.concat(all_race_rows, ignore_index=True) if all_race_rows else pd.DataFrame()
     quali_df = pd.concat(all_quali_rows, ignore_index=True) if all_quali_rows else pd.DataFrame()
@@ -551,30 +558,23 @@ if __name__ == "__main__":
             existing_quali = pd.read_parquet(quali_path)
             logger.info(f"Loaded existing quali data: {len(existing_quali)} rows")
 
-        # Back up existing data — incremental saves inside collect_historical
-        # overwrite the parquet with only the new years, so we need the backup
-        # to restore the pre-existing years at the final merge step.
-        backup_race_path = RAW_DIR / "_race_results_backup.parquet"
-        backup_quali_path = RAW_DIR / "_quali_results_backup.parquet"
-        if not existing_race.empty:
-            existing_race.to_parquet(backup_race_path, index=False)
-            logger.info(f"Backed up {len(existing_race)} race rows to {backup_race_path}")
-        if not existing_quali.empty:
-            existing_quali.to_parquet(backup_quali_path, index=False)
-
+        # The existing parquets are not touched until the final merge below
+        # (save_progress=False), so an interrupted run leaves them intact.
         logger.info(f"Collecting years {args.start}-{args.end}")
-        new_race, new_quali = collect_historical(args.start, args.end, args.sleep)
+        new_race, new_quali = collect_historical(args.start, args.end, args.sleep, save_progress=False)
 
-        # Merge existing (pre-start years) + new, deduplicate on year+round+driver
         def _merge_dfs(existing: pd.DataFrame, new: pd.DataFrame, key_cols: list) -> pd.DataFrame:
             if existing.empty:
                 return new
             if new.empty:
                 return existing
-            # Drop existing rows that fall in the newly collected year range
-            # so fresh data takes precedence for those years
-            existing_outside = existing[~existing["year"].isin(range(args.start, args.end + 1))]
-            combined = pd.concat([existing_outside, new], ignore_index=True)
+            # A freshly collected round replaces the stored one as a whole (a
+            # corrected classification may drop a driver). Rounds that did not
+            # load this time (rate limit, source outage) keep their stored rows
+            # instead of vanishing with the rest of the season.
+            fetched = set(zip(new["year"], new["round"], strict=True))
+            stale = [(y, r) in fetched for y, r in zip(existing["year"], existing["round"], strict=True)]
+            combined = pd.concat([existing[~np.array(stale, dtype=bool)], new], ignore_index=True)
             combined = combined.drop_duplicates(subset=key_cols, keep="last")
             return combined.sort_values(["year", "round"]).reset_index(drop=True)
 
@@ -583,10 +583,6 @@ if __name__ == "__main__":
 
         save_raw(race_df, quali_df)
         logger.info(f"Merged dataset: {len(race_df)} race rows, {len(quali_df)} quali rows, years {sorted(race_df['year'].unique().tolist())}")
-
-        # Clean up backup files
-        backup_race_path.unlink(missing_ok=True)
-        backup_quali_path.unlink(missing_ok=True)
     else:
         logger.info(f"Collecting F1 data {args.start}-{args.end}")
         race_df, quali_df = collect_historical(args.start, args.end, args.sleep)

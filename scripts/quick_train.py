@@ -1,5 +1,5 @@
 """
-Quick training script — v4 (two-stage: finish probability + pace ranker).
+Quick training script — v5 (two-stage: finish probability + tuned pace ranker).
 
 Trains a TwoStageRaceModel: an XGBoost NDCG ranker on finishers only plus a
 finish-probability model, and fits the Plackett-Luce temperature on a season it
@@ -23,7 +23,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 from loguru import logger
+
+if TYPE_CHECKING:
+    import numpy as np
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
@@ -48,29 +53,6 @@ def _dnf(df) -> "np.ndarray":
     return pd.to_numeric(df["dnf"], errors="coerce").fillna(0).to_numpy()
 
 
-def _load_tuned_params(use_tuned: bool) -> "dict | None":
-    """Return tuned XGB params dict if --use-tuned-params and file exists, else None."""
-    if not use_tuned:
-        return None
-    import json
-    from src.models.xgb_model import XGBRacePredictor
-    tuned_path = ROOT / "models" / "optuna_best_params.json"
-    if not tuned_path.exists():
-        logger.warning("--use-tuned-params: models/optuna_best_params.json not found, using defaults")
-        return None
-    with open(tuned_path, encoding="utf-8") as f:
-        data = json.load(f)
-    params = {
-        **XGBRacePredictor.DEFAULT_PARAMS,
-        **data["best_params"],
-        "objective": "reg:absoluteerror",
-        "n_jobs": -1,
-        "random_state": 42,
-    }
-    logger.info(f"Using tuned params (holdout acc={data.get('best_winner_accuracy', '?'):.1%})")
-    return params
-
-
 def main() -> dict:
     """Train and run the promotion gate. Returns the gate result (src/training/promotion.py)."""
     import argparse
@@ -78,8 +60,6 @@ def main() -> dict:
     import pandas as pd
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--use-tuned-params", action="store_true",
-                        help="Load XGB params from models/optuna_best_params.json")
     parser.add_argument("--no-gate", action="store_true",
                         help="Promote the retrained model without the promotion gate")
     # parse_known_args: post_race_retrain.py calls main() with its own --year/--round in argv
@@ -177,9 +157,6 @@ def main() -> dict:
         f"max={train_weight.max():.3f} mean={train_weight.mean():.3f}"
     )
 
-    if args.use_tuned_params:
-        logger.warning("--use-tuned-params holds regressor params; the v3 ranker ignores them")
-
     logger.info("Training evaluation TwoStageRaceModel...")
     model = TwoStageRaceModel()
     model.fit(X_train, y_train, sample_weight=train_weight, qid=_race_ids(train_df), dnf=_dnf(train_df))
@@ -202,8 +179,8 @@ def main() -> dict:
         metrics, race_res = evaluate_race_predictions(test_df, pred_positions, sampler, finish_probs)
         winner_acc_for_manifest = metrics["winner_accuracy"]
 
-        metrics["holdout_years"] = holdout_years
-        metrics["cal_years"] = cal_years
+        metrics["holdout_years"] = [int(y) for y in holdout_years]
+        metrics["cal_years"] = [int(y) for y in cal_years]
         metrics["train_years"] = sorted(int(y) for y in train_df["year"].unique())
 
         metrics["temperature"] = model.temperature
@@ -217,7 +194,7 @@ def main() -> dict:
         # Calibration curve for P(P1) — derived from Plackett-Luce probs
         # Build per-driver P(P1) predictions across entire test set for calibration curve
         all_p1_preds = np.zeros(len(test_df))
-        for (year, rnd), group in test_df.reset_index(drop=True).groupby(["year", "round"]):
+        for _, group in test_df.reset_index(drop=True).groupby(["year", "round"]):
             idx = group.index
             race_pred = pred_positions[idx]
             mat = simulate(race_pred, finish_probs[idx], 1.0, n_sims=sampler.n_simulations, seed=sampler.seed)
@@ -242,7 +219,7 @@ def main() -> dict:
             logger.info("Saved calibration_curve.parquet")
 
         # SHAP values
-        logger.info("Computing SHAP values (regressor)...")
+        logger.info("Computing SHAP values (first seed ranker)...")
         try:
             import shap
 

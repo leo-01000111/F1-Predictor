@@ -11,7 +11,7 @@ Outputs:
 from __future__ import annotations
 
 import time
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -65,11 +65,20 @@ CIRCUIT_COORDS: dict[str, tuple[float, float]] = {
     "abu_dhabi": (24.4672, 54.6031),
     # Historical circuits (no longer on calendar)
     "malaysia": (2.7606, 101.7379),    # Sepang
-    "germany": (50.3356, 8.5697),      # Hockenheim / Nurburgring (approx)
+    "germany": (49.3278, 8.5656),      # Hockenheimring (was Nurburgring's latitude: 110 km north)
     "russia": (43.4057, 39.9719),      # Sochi
     "turkey": (40.9517, 29.4050),      # Istanbul Park
     "portugal": (38.7597, -9.1491),    # Algarve International Circuit (Portimao)
     "france": (43.2506, 5.7917),       # Circuit Paul Ricard
+    # Before 2014 (scripts/collect_pre2014.py)
+    "nurburgring": (50.3356, 6.9475),
+    "mugello": (43.9975, 11.3719),     # 2020 Tuscan GP (had Monza's coordinates, 250 km away)
+    "valencia": (39.4589, -0.3317),    # Valencia Street Circuit
+    "magny_cours": (46.8642, 3.1636),
+    "buddh": (28.3487, 77.5331),       # India
+    "yeongam": (34.7333, 126.4167),    # Korea
+    "fuji": (35.3717, 138.9272),
+    "indianapolis": (39.7950, -86.2347),
 }
 
 # Canonical track ID (src/features/circuits.py) -> CIRCUIT_COORDS key
@@ -84,7 +93,9 @@ _TRACK_COORD_KEY: dict[str, str] = {
     "las_vegas": "las_vegas", "losail": "qatar", "abu_dhabi": "abu_dhabi",
     "imola": "emilia_romagna", "sepang": "malaysia", "sochi": "russia",
     "istanbul": "turkey", "portimao": "portugal", "paul_ricard": "france",
-    "hockenheim": "germany", "nurburgring": "germany", "mugello": "italy",
+    "hockenheim": "germany", "nurburgring": "nurburgring", "mugello": "mugello",
+    "valencia": "valencia", "magny_cours": "magny_cours", "buddh": "buddh",
+    "yeongam": "yeongam", "fuji": "fuji", "indianapolis": "indianapolis",
 }
 
 WET_RACE_PRECIP_THRESHOLD = 2.0  # mm — cumulative race-day precipitation
