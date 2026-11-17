@@ -1,8 +1,8 @@
 {
- "updated_at": "2026-11-08T23:16:14Z",
+ "updated_at": "2026-11-17T16:18:43Z",
  "season": 2026,
  "model": {
-  "trained_at": "2026-11-08T23:16:08.997009+00:00",
+  "trained_at": "2026-11-17T16:18:42.719783+00:00",
   "train_years": [
    2014,
    2025
@@ -14,7 +14,7 @@
   "holdout_races": 44,
   "winner_accuracy": 0.6363636363636364,
   "podium_accuracy": 0.6969696969696969,
-  "spearman": 0.668775491549571,
+  "spearman": 0.6687498255159999,
   "importance": [
    {
     "group": "qualifying",
