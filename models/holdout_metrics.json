@@ -1,15 +1,15 @@
 {
-  "winner_accuracy": 0.6363636363636364,
-  "podium_accuracy": 0.6969696969696969,
-  "brier_p1": 0.02601703490750816,
-  "mean_spearman_r": 0.6687498255159999,
-  "mean_mae_position": 3.431750425184863,
-  "n_holdout_races": 44,
-  "mean_log_loss_winner": 1.0829495560523108,
+  "winner_accuracy": 0.6666666666666666,
+  "podium_accuracy": 0.7037037037037037,
+  "brier_p1": 0.02458642605738576,
+  "mean_spearman_r": 0.6691645450913185,
+  "mean_mae_position": 3.4362583976608176,
+  "n_holdout_races": 45,
+  "mean_log_loss_winner": 1.016840896132505,
   "baselines": {
-    "winner_accuracy_pole": 0.6590909090909091,
-    "podium_accuracy_grid_top3": 0.6742424242424243,
-    "n_races": 44
+    "winner_accuracy_pole": 0.6888888888888889,
+    "podium_accuracy_grid_top3": 0.6814814814814815,
+    "n_races": 45
   },
   "beats_baselines": false,
   "holdout_years": [
@@ -34,8 +34,8 @@
   "temperature": 0.784,
   "promotion": {
     "decision": "promote",
-    "reason": "candidate vs current -0.000, vs grid -0.824: not clearly worse",
-    "checked_at": "2026-11-17T16:18:42.716958+00:00",
+    "reason": "candidate vs current +0.009, vs grid -1.222: not clearly worse",
+    "checked_at": "2026-11-22T15:46:18.907088+00:00",
     "thresholds": {
       "max_worse_vs_current": 0.05,
       "max_worse_vs_grid": 0.0,
@@ -44,26 +44,26 @@
     "eval_years": [
       2026
     ],
-    "n_races": 20,
+    "n_races": 21,
     "ll_top3": {
-      "candidate": 4.4923,
-      "current": 4.4923,
-      "grid": 5.316
+      "candidate": 4.5048,
+      "current": 4.4963,
+      "grid": 5.7264
     },
     "median_temperature": {
       "candidate": 0.66,
       "current": 0.66,
-      "grid": 2.02
+      "grid": 2.615
     },
     "candidate_minus_current": [
-      -0.0,
-      -0.0,
-      0.0
+      0.0085,
+      -0.0062,
+      0.0223
     ],
     "candidate_minus_grid": [
-      -0.8237,
-      -1.8226,
-      -0.0431
+      -1.2216,
+      -2.3765,
+      -0.3063
     ]
   }
 }
